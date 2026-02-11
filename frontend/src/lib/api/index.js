@@ -404,10 +404,10 @@ export const restaurantAPI = {
     const config =
       data instanceof FormData
         ? {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          }
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
         : {};
     return apiClient.post(API_ENDPOINTS.RESTAURANT.STAFF, data, config);
   },
@@ -1281,11 +1281,12 @@ export const adminAPI = {
     return apiClient.get(API_ENDPOINTS.ADMIN.DELIVERY_PARTNERS, { params });
   },
 
-  // Update delivery partner status
-  updateDeliveryPartnerStatus: (id, status, isActive = null) => {
+  // Update delivery partner status and hub
+  updateDeliveryPartnerStatus: (id, status, isActive = null, hubId = null) => {
     const payload = {};
     if (status) payload.status = status;
     if (isActive !== null) payload.isActive = isActive;
+    if (hubId !== null) payload.hubId = hubId;
     return apiClient.patch(
       API_ENDPOINTS.ADMIN.DELIVERY_PARTNER_STATUS.replace(":id", id),
       payload,
@@ -1501,28 +1502,50 @@ export const adminAPI = {
   getZones: (params = {}) => {
     return apiClient.get(API_ENDPOINTS.ADMIN.ZONES, { params });
   },
-
-  getZoneById: (id) => {
-    return apiClient.get(API_ENDPOINTS.ADMIN.ZONE_BY_ID.replace(":id", id));
-  },
-
   createZone: (data) => {
     return apiClient.post(API_ENDPOINTS.ADMIN.ZONES, data);
   },
-
   updateZone: (id, data) => {
-    return apiClient.put(
+    return apiClient.put(API_ENDPOINTS.ADMIN.ZONE_BY_ID.replace(":id", id), data);
+  },
+  deleteZone: (id) => {
+    return apiClient.delete(
       API_ENDPOINTS.ADMIN.ZONE_BY_ID.replace(":id", id),
-      data,
+    );
+  },
+  updateZoneStatus: (id, status) => {
+    return apiClient.put(
+      API_ENDPOINTS.ADMIN.ZONE_STATUS.replace(":id", id),
+      { status },
     );
   },
 
-  deleteZone: (id) => {
-    return apiClient.delete(API_ENDPOINTS.ADMIN.ZONE_BY_ID.replace(":id", id));
+  // City Management
+  getCities: (params = {}) => {
+    return apiClient.get(API_ENDPOINTS.ADMIN.CITIES, { params });
+  },
+  createCity: (data) => {
+    return apiClient.post(API_ENDPOINTS.ADMIN.CITIES, data);
+  },
+  updateCity: (id, data) => {
+    return apiClient.put(API_ENDPOINTS.ADMIN.CITY_BY_ID.replace(":id", id), data);
+  },
+  deleteCity: (id) => {
+    return apiClient.delete(API_ENDPOINTS.ADMIN.CITY_BY_ID.replace(":id", id));
   },
 
-  toggleZoneStatus: (id) => {
-    return apiClient.patch(API_ENDPOINTS.ADMIN.ZONE_STATUS.replace(":id", id));
+  // Hub Management
+  getHubs: (params = {}) => {
+    return apiClient.get(API_ENDPOINTS.ADMIN.HUBS, { params });
+  },
+  createHub: (data) => {
+    return apiClient.post(API_ENDPOINTS.ADMIN.HUBS, data);
+  },
+  updateHub: (id, data) => {
+    return apiClient.put(API_ENDPOINTS.ADMIN.HUB_BY_ID.replace(":id", id), data);
+  },
+  deleteHub: (id) => {
+    return apiClient.delete(API_ENDPOINTS.ADMIN.HUB_BY_ID.replace(":id", id));
   },
 
   // Earning Addon Management
