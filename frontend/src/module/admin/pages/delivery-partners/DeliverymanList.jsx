@@ -16,11 +16,16 @@ export default function DeliverymanList() {
   const [selectedDeliveryman, setSelectedDeliveryman] = useState(null)
   const [viewDetails, setViewDetails] = useState(null)
   const [processing, setProcessing] = useState(false)
+  const [hubs, setHubs] = useState([])
+  const [hubsLoading, setHubsLoading] = useState(false)
+  const [isAssignHubOpen, setIsAssignHubOpen] = useState(false)
+  const [assigningHubId, setAssigningHubId] = useState("")
   const [visibleColumns, setVisibleColumns] = useState({
     si: true,
     name: true,
     contact: true,
     zone: true,
+    hub: true,
     totalOrders: true,
     availabilityStatus: true,
     actions: true,
@@ -31,7 +36,7 @@ export default function DeliverymanList() {
     try {
       setLoading(true)
       setError(null)
-      
+
       const params = {
         page: 1,
         limit: 1000, // Get all for now
@@ -43,7 +48,7 @@ export default function DeliverymanList() {
       }
 
       const response = await adminAPI.getDeliveryPartners(params)
-      
+
       if (response.data && response.data.success) {
         setDeliverymen(response.data.data.deliveryPartners || [])
       } else {
@@ -52,10 +57,10 @@ export default function DeliverymanList() {
       }
     } catch (err) {
       console.error("Error fetching delivery partners:", err)
-      
+
       // Better error handling
       let errorMessage = "Failed to fetch delivery partners. Please try again."
-      
+
       if (err.code === 'ERR_NETWORK') {
         errorMessage = "Network error. Please check if backend server is running."
       } else if (err.response?.status === 401) {
@@ -67,7 +72,7 @@ export default function DeliverymanList() {
       } else if (err.message) {
         errorMessage = err.message
       }
-      
+
       setError(errorMessage)
       setDeliverymen([])
     } finally {
@@ -75,9 +80,24 @@ export default function DeliverymanList() {
     }
   }
 
+  const fetchHubs = async () => {
+    try {
+      setHubsLoading(true)
+      const response = await adminAPI.getHubs()
+      if (response.data && response.data.success) {
+        setHubs(response.data.data.hubs || [])
+      }
+    } catch (err) {
+      console.error("Error fetching hubs:", err)
+    } finally {
+      setHubsLoading(false)
+    }
+  }
+
   // Fetch on mount
   useEffect(() => {
     fetchDeliverymen()
+    fetchHubs()
   }, [])
 
   // Debounced search effect
@@ -99,7 +119,7 @@ export default function DeliverymanList() {
     try {
       setLoading(true)
       const response = await adminAPI.getDeliveryPartnerById(deliveryman._id)
-      
+
       if (response.data && response.data.success) {
         setViewDetails(response.data.data.delivery)
         setIsViewOpen(true)
@@ -125,18 +145,39 @@ export default function DeliverymanList() {
     try {
       setProcessing(true)
       await adminAPI.deleteDeliveryPartner(selectedDeliveryman._id)
-      
+
       // Refresh the list
       await fetchDeliverymen()
-      
+
       setIsDeleteOpen(false)
       setSelectedDeliveryman(null)
-      
+
       // Show success message
       alert(`Successfully deleted ${selectedDeliveryman.name}`)
     } catch (err) {
       console.error("Error deleting delivery partner:", err)
       alert(err.response?.data?.message || "Failed to delete delivery partner. Please try again.")
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const handleOpenAssignHub = (deliveryman) => {
+    setSelectedDeliveryman(deliveryman)
+    setAssigningHubId(deliveryman.hubId || "")
+    setIsAssignHubOpen(true)
+  }
+
+  const handleAssignHub = async () => {
+    if (!selectedDeliveryman) return
+    try {
+      setProcessing(true)
+      await adminAPI.updateDeliveryPartnerStatus(selectedDeliveryman._id, null, null, assigningHubId)
+      await fetchDeliverymen()
+      setIsAssignHubOpen(false)
+      alert("Hub assigned successfully")
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to assign hub")
     } finally {
       setProcessing(false)
     }
@@ -170,6 +211,7 @@ export default function DeliverymanList() {
       zone: true,
       totalOrders: true,
       availabilityStatus: true,
+      hub: true,
       actions: true,
     })
   }
@@ -179,6 +221,7 @@ export default function DeliverymanList() {
     name: "Name",
     contact: "Contact",
     zone: "Zone",
+    hub: "Hub",
     totalOrders: "Total Orders",
     availabilityStatus: "Availability Status",
     actions: "Actions",
@@ -222,7 +265,7 @@ export default function DeliverymanList() {
                 <FileSpreadsheet className="w-4 h-4" />
                 <span className="text-black font-bold">Excel</span>
               </button>
-              <button 
+              <button
                 onClick={() => setIsSettingsOpen(true)}
                 className="p-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition-all"
               >
@@ -296,6 +339,14 @@ export default function DeliverymanList() {
                         </div>
                       </th>
                     )}
+                    {visibleColumns.hub && (
+                      <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                        <div className="flex items-center gap-2">
+                          <span>Hub</span>
+                          <ArrowUpDown className="w-3 h-3 text-slate-400 cursor-pointer hover:text-slate-600" />
+                        </div>
+                      </th>
+                    )}
                     {visibleColumns.totalOrders && (
                       <th className="px-6 py-4 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">
                         <div className="flex items-center gap-2">
@@ -336,8 +387,8 @@ export default function DeliverymanList() {
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
                               {dm.profileImage ? (
-                                <img 
-                                  src={dm.profileImage} 
+                                <img
+                                  src={dm.profileImage}
                                   alt={dm.name}
                                   className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                                 />
@@ -371,6 +422,13 @@ export default function DeliverymanList() {
                             <span className="text-sm text-slate-700">{dm.zone}</span>
                           </td>
                         )}
+                        {visibleColumns.hub && (
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`text-sm ${dm.hubId ? 'text-slate-900 font-medium' : 'text-slate-400 italic'}`}>
+                              {dm.hubId?.hubName || "Not Assigned"}
+                            </span>
+                          </td>
+                        )}
                         {visibleColumns.totalOrders && (
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="text-sm text-slate-700">{dm.totalOrders || 0}</span>
@@ -388,12 +446,19 @@ export default function DeliverymanList() {
                         {visibleColumns.actions && (
                           <td className="px-6 py-4 whitespace-nowrap text-center">
                             <div className="flex items-center justify-center gap-2">
-                              <button 
+                              <button
                                 onClick={() => handleView(dm)}
-                                className="p-1.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors" 
+                                className="p-1.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
                                 title="View Details"
                               >
                                 <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleOpenAssignHub(dm)}
+                                className="p-1.5 rounded bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors"
+                                title="Assign Hub"
+                              >
+                                <MapPin className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => handleDelete(dm)}
@@ -460,8 +525,8 @@ export default function DeliverymanList() {
                 <div className="flex items-start gap-6 pb-6 border-b border-slate-200">
                   <div className="flex-shrink-0">
                     {viewDetails.profileImage?.url ? (
-                      <img 
-                        src={viewDetails.profileImage.url} 
+                      <img
+                        src={viewDetails.profileImage.url}
                         alt={viewDetails.name}
                         className="w-24 h-24 rounded-full object-cover border-2 border-slate-200"
                       />
@@ -496,12 +561,11 @@ export default function DeliverymanList() {
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-slate-500 uppercase">Status</label>
-                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${
-                        viewDetails.status === 'pending' ? 'bg-blue-100 text-blue-700' :
+                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${viewDetails.status === 'pending' ? 'bg-blue-100 text-blue-700' :
                         viewDetails.status === 'approved' || viewDetails.status === 'active' ? 'bg-green-100 text-green-700' :
-                        viewDetails.status === 'blocked' ? 'bg-red-100 text-red-700' :
-                        'bg-slate-100 text-slate-700'
-                      }`}>
+                          viewDetails.status === 'blocked' ? 'bg-red-100 text-red-700' :
+                            'bg-slate-100 text-slate-700'
+                        }`}>
                         {viewDetails.status === 'blocked' ? 'Rejected' : (viewDetails.status?.charAt(0).toUpperCase() + viewDetails.status?.slice(1) || "N/A")}
                       </span>
                     </div>
@@ -630,9 +694,9 @@ export default function DeliverymanList() {
                               <p className="text-sm text-slate-700 mb-1">Number: {viewDetails.documents.aadhar.number}</p>
                             )}
                             {viewDetails.documents.aadhar.document && (
-                              <a 
-                                href={viewDetails.documents.aadhar.document} 
-                                target="_blank" 
+                              <a
+                                href={viewDetails.documents.aadhar.document}
+                                target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
                               >
@@ -652,9 +716,9 @@ export default function DeliverymanList() {
                               <p className="text-sm text-slate-700 mb-1">Number: {viewDetails.documents.pan.number}</p>
                             )}
                             {viewDetails.documents.pan.document && (
-                              <a 
-                                href={viewDetails.documents.pan.document} 
-                                target="_blank" 
+                              <a
+                                href={viewDetails.documents.pan.document}
+                                target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
                               >
@@ -679,9 +743,9 @@ export default function DeliverymanList() {
                               </p>
                             )}
                             {viewDetails.documents.drivingLicense.document && (
-                              <a 
-                                href={viewDetails.documents.drivingLicense.document} 
-                                target="_blank" 
+                              <a
+                                href={viewDetails.documents.drivingLicense.document}
+                                target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
                               >
@@ -701,9 +765,9 @@ export default function DeliverymanList() {
                               <p className="text-sm text-slate-700 mb-1">Number: {viewDetails.documents.vehicleRC.number}</p>
                             )}
                             {viewDetails.documents.vehicleRC.document && (
-                              <a 
-                                href={viewDetails.documents.vehicleRC.document} 
-                                target="_blank" 
+                              <a
+                                href={viewDetails.documents.vehicleRC.document}
+                                target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
                               >
@@ -763,9 +827,8 @@ export default function DeliverymanList() {
                   {viewDetails.phoneVerified !== undefined && (
                     <div>
                       <label className="text-xs font-semibold text-slate-500 uppercase">Phone Verified</label>
-                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${
-                        viewDetails.phoneVerified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}>
+                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${viewDetails.phoneVerified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        }`}>
                         {viewDetails.phoneVerified ? 'Verified' : 'Not Verified'}
                       </span>
                     </div>
@@ -847,6 +910,56 @@ export default function DeliverymanList() {
               </button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Hub Dialog */}
+      <Dialog open={isAssignHubOpen} onOpenChange={setIsAssignHubOpen}>
+        <DialogContent className="max-w-md bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+          <DialogHeader className="pb-4 border-b border-slate-100">
+            <DialogTitle className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-indigo-600" />
+              Assign Hub
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-6 space-y-4">
+            <p className="text-sm text-slate-600">
+              Select the service hub for <span className="font-bold text-slate-900">{selectedDeliveryman?.name}</span>.
+              They will only see orders from this hub.
+            </p>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Hub</label>
+              <select
+                className="w-full h-11 rounded-lg border border-slate-300 bg-slate-50 px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={assigningHubId}
+                onChange={(e) => setAssigningHubId(e.target.value)}
+              >
+                <option value="">No Hub (Full Access)</option>
+                {hubs.map(hub => (
+                  <option key={hub._id} value={hub._id}>
+                    {hub.hubName} ({hub.cityId?.cityName})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <DialogFooter className="pt-4 border-t border-slate-100 flex gap-3">
+            <button
+              onClick={() => setIsAssignHubOpen(false)}
+              disabled={processing}
+              className="flex-1 px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleAssignHub}
+              disabled={processing}
+              className="flex-1 bg-indigo-600 text-white rounded-lg px-4 py-2 hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+            >
+              {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              Assign Hub
+            </button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

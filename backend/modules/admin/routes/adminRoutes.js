@@ -217,6 +217,9 @@ import {
   getPublicFeeSettings,
 } from "../controllers/feeSettingsController.js";
 import zoneRoutes from "./zoneRoutes.js";
+import cityRoutes from "./cityRoutes.js";
+import hubRoutes from "./hubRoutes.js";
+
 import { authenticateAdmin } from "../middleware/adminAuth.js";
 import { uploadMiddleware } from "../../../shared/utils/cloudinaryService.js";
 
@@ -402,6 +405,13 @@ router.get("/offers", getAllOffers);
 
 // Zone Management
 router.use("/zones", zoneRoutes);
+
+// City Management
+router.use("/cities", cityRoutes);
+
+// Hub Management
+router.use("/hubs", hubRoutes);
+
 
 // About Page Management
 router.get("/about", getAbout);

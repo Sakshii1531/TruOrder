@@ -50,6 +50,12 @@ export const sidebarMenuData = [
         icon: "MapPin",
       },
       {
+        type: "link",
+        label: "City & Hub Management",
+        path: "/admin/geographic-management",
+        icon: "Globe",
+      },
+      {
         type: "expandable",
         label: "Restaurants",
         icon: "UtensilsCrossed",

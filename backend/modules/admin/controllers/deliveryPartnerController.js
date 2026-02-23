@@ -21,9 +21,9 @@ const logger = winston.createLogger({
  */
 export const getJoinRequests = asyncHandler(async (req, res) => {
   try {
-    const { 
-      status = 'pending', 
-      page = 1, 
+    const {
+      status = 'pending',
+      page = 1,
       limit = 50,
       search,
       zone,
@@ -33,7 +33,7 @@ export const getJoinRequests = asyncHandler(async (req, res) => {
 
     // Build query
     const query = {};
-    
+
     // Status filter
     if (status === 'pending') {
       query.status = 'pending';
@@ -87,24 +87,24 @@ export const getJoinRequests = asyncHandler(async (req, res) => {
 
       // Get zone from location (city, state, country)
       let zone = 'All over the World'; // Default
-      
+
       if (delivery.location) {
         const locationParts = [];
-        
+
         // Add city if available
         if (delivery.location.city) {
           locationParts.push(delivery.location.city);
         }
-        
+
         // Add state if available
         if (delivery.location.state) {
           locationParts.push(delivery.location.state);
         }
-        
+
         // Add country (default to India if not specified)
         const country = delivery.location.country || 'India';
         locationParts.push(country);
-        
+
         // If we have location parts, join them
         if (locationParts.length > 0) {
           zone = locationParts.join(', ');
@@ -117,7 +117,7 @@ export const getJoinRequests = asyncHandler(async (req, res) => {
       }
 
       // Get vehicle type
-      const vehicleType = delivery.vehicle?.type 
+      const vehicleType = delivery.vehicle?.type
         ? delivery.vehicle.type.charAt(0).toUpperCase() + delivery.vehicle.type.slice(1)
         : 'N/A';
 
@@ -288,9 +288,9 @@ export const rejectDeliveryPartner = asyncHandler(async (req, res) => {
  */
 export const getDeliveryPartners = asyncHandler(async (req, res) => {
   try {
-    const { 
-      status, 
-      page = 1, 
+    const {
+      status,
+      page = 1,
       limit = 50,
       search,
       isActive,
@@ -301,7 +301,7 @@ export const getDeliveryPartners = asyncHandler(async (req, res) => {
     const query = {
       status: { $in: ['approved', 'active'] } // Only show approved/active partners
     };
-    
+
     // Status filter (if provided, override default)
     if (status) {
       query.status = status;
@@ -329,7 +329,7 @@ export const getDeliveryPartners = asyncHandler(async (req, res) => {
     // Note: In Mongoose, if a field is not explicitly excluded, it's included by default
     // So we just need to make sure we're not excluding availability
     let selectFields = '-password -refreshToken';
-    
+
     // Fetch delivery partners
     const deliveries = await Delivery.find(query)
       .select(selectFields)
@@ -337,7 +337,7 @@ export const getDeliveryPartners = asyncHandler(async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit))
       .lean();
-    
+
     // Log for debugging
     if (includeAvailability === 'true' || includeAvailability === true) {
       console.log(`📦 Fetching ${deliveries.length} delivery partners with availability data`);
@@ -352,7 +352,7 @@ export const getDeliveryPartners = asyncHandler(async (req, res) => {
 
     // Get order statistics for each delivery partner
     const deliveryIds = deliveries.map(d => d._id);
-    
+
     // Get order counts for each delivery partner
     const orderStats = await Order.aggregate([
       {
@@ -389,7 +389,7 @@ export const getDeliveryPartners = asyncHandler(async (req, res) => {
     // Format response with order stats and zone info
     const formattedPartners = deliveries.map((delivery, index) => {
       const stats = statsMap[delivery._id.toString()] || { totalOrders: 0, assignedOrders: 0 };
-      
+
       // Get zone from location
       let zone = 'All over the World';
       if (delivery.location) {
@@ -486,8 +486,8 @@ export const deleteDeliveryPartner = asyncHandler(async (req, res) => {
         { $unset: { deliveryPartnerId: 1 } },
         { session }
       );
-      logger.info(`Updated orders for delivery partner: ${id}`, { 
-        ordersUpdated: ordersUpdated.modifiedCount 
+      logger.info(`Updated orders for delivery partner: ${id}`, {
+        ordersUpdated: ordersUpdated.modifiedCount
       });
 
       // 3. Clear refreshToken to force logout
@@ -596,6 +596,23 @@ export const updateDeliveryPartnerStatus = asyncHandler(async (req, res) => {
     // Update isActive if provided
     if (typeof isActive === 'boolean') {
       delivery.isActive = isActive;
+    }
+
+    // Update hubId if provided
+    if (req.body.hubId) {
+      // Validate hub exists and is active
+      const Hub = (await import('../models/Hub.js')).default;
+      const hub = await Hub.findById(req.body.hubId);
+      if (!hub) {
+        return errorResponse(res, 400, 'Hub not found');
+      }
+      if (hub.status !== 'active') {
+        return errorResponse(res, 400, 'Cannot assign delivery partner to an inactive hub');
+      }
+      delivery.hubId = req.body.hubId;
+    } else if (req.body.hubId === null) {
+      // Allow unassigning hub
+      delivery.hubId = null;
     }
 
     await delivery.save();
