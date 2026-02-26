@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Building2, Info, Tag, Upload, Calendar, FileText, MapPin, CheckCircle2, X, Image as ImageIcon, Clock, Loader2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -94,6 +94,51 @@ export default function AddRestaurant() {
     phone: "",
     signupMethod: "email",
   })
+
+  // Hub-based architecture: city & hub assignment
+  const [cities, setCities] = useState([])
+  const [hubs, setHubs] = useState([])
+  const [loadingCities, setLoadingCities] = useState(false)
+  const [loadingHubs, setLoadingHubs] = useState(false)
+  const [selectedCityId, setSelectedCityId] = useState("")
+  const [selectedHubId, setSelectedHubId] = useState("")
+
+  // Load active cities on mount
+  useEffect(() => {
+    const fetchCities = async () => {
+      try {
+        setLoadingCities(true)
+        const res = await adminAPI.getCities({ status: "active" })
+        if (res.data?.success) setCities(res.data.data?.cities || [])
+      } catch (err) {
+        console.error("Failed to load cities:", err)
+      } finally {
+        setLoadingCities(false)
+      }
+    }
+    fetchCities()
+  }, [])
+
+  // Load hubs when city changes
+  useEffect(() => {
+    if (!selectedCityId) {
+      setHubs([])
+      setSelectedHubId("")
+      return
+    }
+    const fetchHubs = async () => {
+      try {
+        setLoadingHubs(true)
+        const res = await adminAPI.getHubs({ cityId: selectedCityId, status: "active" })
+        if (res.data?.success) setHubs(res.data.data?.hubs || [])
+      } catch (err) {
+        console.error("Failed to load hubs:", err)
+      } finally {
+        setLoadingHubs(false)
+      }
+    }
+    fetchHubs()
+  }, [selectedCityId])
 
   const languageTabs = [
     { key: "default", label: "Default" },
@@ -295,11 +340,12 @@ export default function AddRestaurant() {
         // Auth
         email: auth.email || null,
         phone: auth.phone || null,
-        email: auth.email || null,
-        phone: auth.phone || null,
         signupMethod: auth.email ? 'email' : 'phone',
         // Dining Settings
         diningSettings: step4.diningSettings,
+        // Hub-based architecture
+        cityId: selectedCityId || null,
+        hubId: selectedHubId || null,
       }
 
       // Call backend API
@@ -762,6 +808,44 @@ export default function AddRestaurant() {
             </div>
           </div>
         )}
+      </section>
+
+      {/* Hub Assignment Section */}
+      <section className="bg-white p-4 sm:p-6 rounded-md space-y-4">
+        <h2 className="text-lg font-semibold text-black">City & Hub Assignment</h2>
+        <p className="text-xs text-gray-500">Assign this restaurant to a city and hub. This is optional and can be changed later.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label className="text-xs text-gray-700">City</Label>
+            <select
+              className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm shadow-sm mt-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
+              value={selectedCityId}
+              onChange={(e) => { setSelectedCityId(e.target.value); setSelectedHubId("") }}
+              disabled={loadingCities}
+            >
+              <option value="">{loadingCities ? "Loading cities..." : "Select City (optional)"}</option>
+              {cities.map(city => (
+                <option key={city._id} value={city._id}>{city.cityName}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label className="text-xs text-gray-700">Hub</Label>
+            <select
+              className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm shadow-sm mt-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
+              value={selectedHubId}
+              onChange={(e) => setSelectedHubId(e.target.value)}
+              disabled={!selectedCityId || loadingHubs}
+            >
+              <option value="">
+                {!selectedCityId ? "Select a city first" : loadingHubs ? "Loading hubs..." : hubs.length === 0 ? "No hubs available" : "Select Hub (optional)"}
+              </option>
+              {hubs.map(hub => (
+                <option key={hub._id} value={hub._id}>{hub.hubName}</option>
+              ))}
+            </select>
+          </div>
+        </div>
       </section>
     </div>
   )

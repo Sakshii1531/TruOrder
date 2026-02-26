@@ -179,7 +179,9 @@ export default function Home() {
   const [searchParams] = useSearchParams()
   const query = searchParams.get("q") || ""
   const [heroSearch, setHeroSearch] = useState("")
-  const { openSearch, closeSearch, searchValue, setSearchValue } = useSearchOverlay()
+  const [isListening, setIsListening] = useState(false)
+  const [showVoiceCard, setShowVoiceCard] = useState(false)
+  const { isSearchOpen, openSearch, closeSearch, searchValue, setSearchValue } = useSearchOverlay()
   const { openLocationSelector } = useLocationSelector()
   const { vegMode, setVegMode: setVegModeContext } = useProfile()
   const [prevVegMode, setPrevVegMode] = useState(vegMode)
@@ -204,6 +206,7 @@ export default function Home() {
   const [loadingRealCategories, setLoadingRealCategories] = useState(true)
   const [showAllCategoriesModal, setShowAllCategoriesModal] = useState(false)
   const isHandlingSwitchOff = useRef(false)
+  const speechRecognitionRef = useRef(null)
 
   // Swipe functionality for hero banner carousel
   const touchStartX = useRef(0)
@@ -1011,6 +1014,93 @@ export default function Home() {
     setHeroSearch("")
   }, [closeSearch])
 
+  useEffect(() => {
+    if (!isSearchOpen) {
+      setHeroSearch("")
+    }
+  }, [isSearchOpen])
+
+  const handleCloseVoiceCard = useCallback(() => {
+    setShowVoiceCard(false)
+    setIsListening(false)
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.stop()
+      } catch {
+        // Ignore invalid state errors while stopping recognition
+      }
+    }
+  }, [])
+
+  const handleVoiceSearch = useCallback(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      setShowVoiceCard(false)
+      handleSearchFocus()
+      return
+    }
+
+    if (speechRecognitionRef.current && isListening) {
+      try {
+        speechRecognitionRef.current.stop()
+      } catch {
+        // Ignore invalid state errors from browsers while stopping recognition
+      }
+      setShowVoiceCard(false)
+      setIsListening(false)
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.lang = "en-IN"
+    recognition.interimResults = false
+    recognition.maxAlternatives = 1
+
+    speechRecognitionRef.current = recognition
+    setIsListening(true)
+    setShowVoiceCard(true)
+
+    recognition.onresult = (event) => {
+      const transcript = event?.results?.[0]?.[0]?.transcript?.trim() || ""
+      if (transcript) {
+        setHeroSearch(transcript)
+        setSearchValue(transcript)
+      }
+      setShowVoiceCard(false)
+      openSearch()
+    }
+
+    recognition.onerror = () => {
+      setIsListening(false)
+      setShowVoiceCard(false)
+    }
+
+    recognition.onend = () => {
+      setIsListening(false)
+      setShowVoiceCard(false)
+    }
+
+    try {
+      recognition.start()
+    } catch {
+      setIsListening(false)
+      setShowVoiceCard(false)
+      handleSearchFocus()
+    }
+  }, [handleSearchFocus, isListening, openSearch, setSearchValue])
+
+  useEffect(() => {
+    return () => {
+      if (speechRecognitionRef.current) {
+        try {
+          speechRecognitionRef.current.stop()
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
+    }
+  }, [])
+
   // Removed GSAP animations - using CSS and ScrollReveal components instead for better performance
   // Auto-scroll removed - manual scroll only
 
@@ -1046,6 +1136,41 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen bg-white dark:bg-[#0a0a0a] pb-28 md:pb-24">
+      <AnimatePresence>
+        {showVoiceCard && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 px-4"
+            onClick={handleCloseVoiceCard}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              transition={{ duration: 0.2 }}
+              className="w-full max-w-xs rounded-2xl bg-white p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className={`flex h-14 w-14 items-center justify-center rounded-full ${isListening ? "bg-sky-100" : "bg-gray-100"}`}>
+                  <Mic className={`h-7 w-7 ${isListening ? "text-sky-500" : "text-gray-500"}`} />
+                </div>
+                <p className="text-lg font-semibold text-gray-900">Speak now</p>
+                <button
+                  type="button"
+                  onClick={handleCloseVoiceCard}
+                  className="mt-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Unified Background for Entire Page - Vibrant Food Theme */}
       <div className="absolute top-0 left-0 right-0 bottom-0 pointer-events-none overflow-hidden z-0">
         {/* Main Background */}
@@ -1157,15 +1282,18 @@ export default function Home() {
       </div>
 
       {/* 1. Navbar Section - Distinct Block */}
-      <div className="bg-white pt-2 sm:pt-3 lg:pt-4 pb-2 relative z-30">
-        <PageNavbar textColor="black" zIndex={30} />
+      <div className="bg-white pt-2 sm:pt-3 lg:pt-4 pb-2 relative z-30 md:hidden">
+        <div className="w-full max-w-[1100px] mx-auto">
+          <PageNavbar textColor="black" zIndex={30} />
+        </div>
       </div>
+      <div className="hidden md:block h-16 bg-white" />
 
       {/* 2. Search & Filter Section - Distinct Block below Navbar */}
-      <div className="bg-white pb-6 px-3 sm:px-6 lg:px-8 relative z-30">
-        <div className="max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto">
+      <div className="bg-white pt-3 md:pt-4 pb-6 px-3 sm:px-6 lg:px-8 relative z-30">
+        <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
-            className="flex items-center gap-3 sm:gap-4 lg:gap-6"
+            className="flex items-center gap-3 sm:gap-4"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
@@ -1176,9 +1304,9 @@ export default function Home() {
               whileHover={{ scale: 1.01 }}
               transition={{ type: "spring", stiffness: 300, damping: 20 }}
             >
-              <div className="relative bg-gray-100 dark:bg-[#1a1a1a] rounded-xl lg:rounded-2xl border-none p-1 sm:p-1.5 lg:p-2 transition-all duration-300">
+              <div className="relative bg-white dark:bg-[#1a1a1a] rounded-2xl border border-slate-200 dark:border-slate-700 px-3 sm:px-4 lg:px-5 py-1 sm:py-1.5 shadow-sm transition-all duration-300 focus-within:border-sky-300 focus-within:shadow-[0_0_0_3px_rgba(14,165,233,0.12)]">
                 <div className="flex items-center gap-2 sm:gap-3 lg:gap-4">
-                  <Search className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-gray-500 flex-shrink-0 ml-2 sm:ml-3 lg:ml-4" strokeWidth={2.5} />
+                  <Search className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-slate-500 flex-shrink-0" strokeWidth={2.5} />
                   <div className="flex-1 relative">
                     <div className="relative w-full">
                       <Input
@@ -1193,7 +1321,7 @@ export default function Home() {
                           }
                         }}
                         aria-label="Search restaurants and food"
-                        className="pl-0 pr-2 h-8 sm:h-9 lg:h-11 w-full bg-gray-100 dark:bg-[#1a1a1a] border-0 text-sm sm:text-base lg:text-lg font-semibold text-gray-700 dark:text-white focus-visible:ring-0 focus-visible:ring-offset-0 rounded-full placeholder:text-gray-500 dark:placeholder:text-gray-400"
+                        className="pl-0 pr-2 h-7 sm:h-8 lg:h-10 w-full bg-transparent !border-0 !shadow-none text-sm sm:text-base lg:text-lg font-semibold text-gray-700 dark:text-white focus-visible:!ring-0 focus-visible:ring-offset-0 focus-visible:!border-0 rounded-none placeholder:text-gray-500 dark:placeholder:text-gray-400"
                       />
                       {!heroSearch && (
                         <div className="absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none h-5 lg:h-6 overflow-hidden">
@@ -1215,11 +1343,11 @@ export default function Home() {
                   </div>
                   <button
                     type="button"
-                    aria-label="Voice Search"
-                    onClick={handleSearchFocus}
-                    className="flex-shrink-0 mr-2 sm:mr-3 lg:mr-4 p-1 lg:p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                    aria-label={isListening ? "Stop Voice Search" : "Voice Search"}
+                    onClick={handleVoiceSearch}
+                    className="flex-shrink-0 p-1.5 lg:p-2 bg-sky-50 dark:bg-sky-900/30 hover:bg-sky-100 dark:hover:bg-sky-900/50 rounded-full transition-colors"
                   >
-                    <Mic className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-gray-500 dark:text-gray-400" strokeWidth={2.5} />
+                    <Mic className={`h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 ${isListening ? "text-sky-500" : "text-gray-500 dark:text-gray-400"}`} strokeWidth={2.5} />
                   </button>
                 </div>
               </div>
@@ -1247,9 +1375,9 @@ export default function Home() {
       </div>
 
       {/* 3. Hero Banner Section - Distinct Block below Search */}
-      <div className="w-full px-4 sm:px-6 lg:px-8 pb-4">
+      <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 pb-4">
         <div
-          className="relative w-full overflow-hidden h-[20vh] sm:h-[28vh] lg:h-[35vh] rounded-2xl bg-gray-100 shadow-sm"
+          className="relative w-full overflow-hidden aspect-[2.2/1] sm:aspect-[3.5/1] md:aspect-[4/1] lg:aspect-[3.3/1] rounded-3xl bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-900/10 dark:to-blue-900/10 shadow-sm group/banner"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -1266,58 +1394,84 @@ export default function Home() {
               </div>
             </div>
           ) : heroBannerImages.length > 0 ? (
-            <motion.div
-              className="flex h-full"
-              animate={{
-                x: `-${currentBannerIndex * 100}vw`
-              }}
-              transition={{
-                duration: 0.6,
-                ease: "easeInOut"
-              }}
-              style={{
-                width: `${heroBannerImages.length * 100}vw`
-              }}
-            >
-              {heroBannerImages.map((image, index) => {
-                const bannerData = heroBannersData[index]
-                const linkedRestaurants = bannerData?.linkedRestaurants || []
-                const hasLinkedRestaurants = linkedRestaurants.length > 0
-                return (
-                  <div
-                    key={index}
-                    className="h-full flex-shrink-0 relative"
-                    style={{ width: '100vw', cursor: hasLinkedRestaurants ? 'pointer' : 'default' }}
-                    onClick={() => {
-                      if (hasLinkedRestaurants) {
-                        const firstRestaurant = linkedRestaurants[0]
-                        const restaurantSlug = firstRestaurant.slug || firstRestaurant.restaurantId || firstRestaurant._id
-                        navigate(`/restaurants/${restaurantSlug}`)
-                      }
-                    }}
-                  >
-                    <OptimizedImage
-                      src={image}
-                      alt={`Hero Banner ${index + 1}`}
-                      className="w-full h-full"
-                      priority={index === 0}
-                      sizes="100vw"
-                      objectFit="cover"
-                      placeholder="blur"
+            <>
+              <motion.div
+                className="flex h-full"
+                animate={{
+                  x: `-${currentBannerIndex * 100}%`
+                }}
+                transition={{
+                  duration: 0.6,
+                  ease: [0.32, 0.72, 0, 1]
+                }}
+                style={{
+                  width: `${heroBannerImages.length * 100}%`
+                }}
+              >
+                {heroBannerImages.map((image, index) => {
+                  const bannerData = heroBannersData[index]
+                  const linkedRestaurants = bannerData?.linkedRestaurants || []
+                  const hasLinkedRestaurants = linkedRestaurants.length > 0
+                  return (
+                    <div
+                      key={index}
+                      className="h-full flex-shrink-0 relative"
+                      style={{ width: `${100 / heroBannerImages.length}%`, cursor: hasLinkedRestaurants ? 'pointer' : 'default' }}
+                      onClick={() => {
+                        if (hasLinkedRestaurants) {
+                          const firstRestaurant = linkedRestaurants[0]
+                          const restaurantSlug = firstRestaurant.slug || firstRestaurant.restaurantId || firstRestaurant._id
+                          navigate(`/restaurants/${restaurantSlug}`)
+                        }
+                      }}
+                    >
+                      <div className="w-full h-full transform transition-transform duration-700 group-hover/banner:scale-[1.02]">
+                        <OptimizedImage
+                          src={image}
+                          alt={`Hero Banner ${index + 1}`}
+                          className="w-full h-full"
+                          priority={index === 0}
+                          sizes="(max-width: 1100px) 100vw, 1100px"
+                          objectFit="cover"
+                          placeholder="blur"
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </motion.div>
+
+              {/* Banner Indicators (Dots) */}
+              {heroBannerImages.length > 1 && (
+                <div className="absolute bottom-4 left-0 right-0 flex justify-center items-center gap-1.5 z-10">
+                  {heroBannerImages.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setCurrentBannerIndex(index)
+                        resetAutoSlide()
+                      }}
+                      className={`h-1.5 transition-all duration-300 rounded-full ${index === currentBannerIndex
+                        ? "w-6 bg-white shadow-sm"
+                        : "w-1.5 bg-white/50 hover:bg-white/70"
+                        }`}
+                      aria-label={`Go to slide ${index + 1}`}
                     />
-                  </div>
-                )
-              })}
-            </motion.div>
+                  ))}
+                </div>
+              )}
+            </>
           ) : (
             <div className="absolute inset-0 z-0 bg-gradient-to-br from-sky-400 to-sky-600" />
           )}
         </div>
       </div>
 
+
       {/* Rest of Content - Container Width with Unified Background */}
       <motion.div
-        className="relative max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 space-y-0 pt-2 sm:pt-3 lg:pt-6"
+        className="relative max-w-[1100px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 space-y-0 pt-2 sm:pt-3 lg:pt-6"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.6, delay: 0.4 }}
@@ -1411,15 +1565,15 @@ export default function Home() {
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setShowAllCategoriesModal(true)}
                   >
-                    <div className="relative w-32 h-36 sm:w-36 sm:h-40 md:w-40 md:h-44 bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800 overflow-hidden group hover:shadow-md transition-all flex items-center justify-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-sky-100 dark:bg-sky-900/50 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <div className="flex flex-col items-center gap-2 group">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white dark:bg-[#1a1a1a] shadow-sm border border-slate-200 dark:border-gray-800 flex items-center justify-center group-hover:shadow-md transition-all">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-sky-50 dark:bg-sky-900/30 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
                           <UtensilsCrossed className="w-5 h-5 sm:w-6 sm:h-6 text-sky-600 dark:text-sky-400" />
                         </div>
-                        <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
-                          See all
-                        </span>
                       </div>
+                      <span className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white text-center">
+                        See all
+                      </span>
                     </div>
                   </motion.div>
                 )}
@@ -1461,15 +1615,15 @@ export default function Home() {
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setShowAllCategoriesModal(true)}
                   >
-                    <div className="relative w-32 h-36 sm:w-36 sm:h-40 md:w-40 md:h-44 bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-sm border border-slate-100 dark:border-gray-800 overflow-hidden group hover:shadow-md transition-all flex items-center justify-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-sky-100 dark:bg-sky-900/50 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <div className="flex flex-col items-center gap-2 group">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white dark:bg-[#1a1a1a] shadow-sm border border-slate-200 dark:border-gray-800 flex items-center justify-center group-hover:shadow-md transition-all">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-sky-50 dark:bg-sky-900/30 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
                           <UtensilsCrossed className="w-5 h-5 sm:w-6 sm:h-6 text-sky-600 dark:text-sky-400" />
                         </div>
-                        <span className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
-                          See all
-                        </span>
                       </div>
+                      <span className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white text-center">
+                        See all
+                      </span>
                     </div>
                   </motion.div>
                 )}

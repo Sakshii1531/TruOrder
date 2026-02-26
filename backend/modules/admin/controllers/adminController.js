@@ -316,16 +316,6 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
     // Completed orders (delivered orders)
     const completedOrders = orderStatusMap.delivered || 0;
 
-    // Get recent activity (last 24 hours)
-    const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const recentOrders = await Order.countDocuments({
-      createdAt: { $gte: last24Hours },
-    });
-    const recentRestaurants = await Restaurant.countDocuments({
-      createdAt: { $gte: last24Hours },
-      isActive: true,
-    });
-
     // Get monthly data for last 12 months
     // Use aggregation to match orders with settlements by orderId and use order's deliveredAt
     const monthlyData = [];
@@ -457,11 +447,6 @@ export const getDashboardStats = asyncHandler(async (req, res) => {
         total: activePartners,
         restaurants: activeRestaurants,
         delivery: activeDeliveryPartners,
-      },
-      recentActivity: {
-        orders: recentOrders,
-        restaurants: recentRestaurants,
-        period: "last24Hours",
       },
       monthlyData: monthlyData, // Add monthly data for graphs
       // Additional stats
@@ -1756,6 +1741,11 @@ export const createRestaurant = asyncHandler(async (req, res) => {
       phone,
       password,
       signupMethod = "email",
+      // Hub-based architecture
+      cityId,
+      hubId,
+      // Dining settings
+      diningSettings,
     } = req.body;
 
     // Validation
@@ -1954,6 +1944,11 @@ export const createRestaurant = asyncHandler(async (req, res) => {
       isAcceptingOrders: true,
       approvedAt: new Date(),
       approvedBy: adminId,
+      // Hub-based architecture (optional)
+      ...(cityId && { cityId }),
+      ...(hubId && { hubId }),
+      // Dining settings (optional)
+      ...(diningSettings && { diningSettings }),
     };
 
     // Add authentication fields
@@ -2479,9 +2474,9 @@ export const getRestaurantAnalytics = asyncHandler(async (req, res) => {
     const avgMonthlyProfit =
       monthlyEarningsMap.size > 0
         ? Array.from(monthlyEarningsMap.values()).reduce(
-            (sum, val) => sum + val,
-            0,
-          ) / monthlyEarningsMap.size
+          (sum, val) => sum + val,
+          0,
+        ) / monthlyEarningsMap.size
         : 0;
 
     // Get commission percentage from RestaurantCommission

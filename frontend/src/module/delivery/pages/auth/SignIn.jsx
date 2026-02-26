@@ -142,7 +142,7 @@ export default function DeliverySignIn() {
         </div>
         
         {/* DELIVERY Badge */}
-        <div className="bg-black px-6 py-2 rounded mt-2">
+        <div className="bg-sky-600 px-6 py-2 rounded mt-2">
           <span className="text-white font-semibold text-sm uppercase tracking-wide">
             DELIVERY
           </span>
@@ -169,7 +169,7 @@ export default function DeliverySignIn() {
                 value={formData.countryCode}
                 onValueChange={handleCountryCodeChange}
               >
-                <SelectTrigger className="w-[100px] !h-12 border-gray-300 rounded-lg flex items-center shrink-0" size="default">
+                <SelectTrigger className="w-[100px] !h-12 border-gray-300 rounded-lg flex items-center shrink-0 focus:ring-sky-500 focus:border-sky-500" size="default">
                   <SelectValue>
                     <span className="flex items-center gap-2">
                       <span>{selectedCountry.flag}</span>
@@ -196,7 +196,7 @@ export default function DeliverySignIn() {
                 onChange={handlePhoneChange}
                 autoComplete="off"
                 autoFocus={false}
-                className={`flex-1 h-12 px-4 text-gray-900 placeholder-gray-400 focus:outline-none text-base border rounded-lg min-w-0 ${
+                className={`flex-1 h-12 px-4 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 text-base border rounded-lg min-w-0 ${
                   error ? "border-red-500" : "border-gray-300"
                 }`}
               />
@@ -225,7 +225,7 @@ export default function DeliverySignIn() {
             disabled={!isValid || isSending}
             className={`w-full py-4 rounded-lg font-bold text-base transition-colors ${
               isValid && !isSending
-                ? "bg-[#00B761] hover:bg-[#00A055] active:bg-[#009049] text-white"
+                ? "bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white"
                 : "bg-gray-300 text-gray-500 cursor-not-allowed"
             }`}
           >
@@ -235,7 +235,7 @@ export default function DeliverySignIn() {
           {/* Terms and Conditions */}
           <p className="text-xs text-center text-gray-600 px-4">
             By continuing, you agree to our{" "}
-            <a href="#" className="text-blue-600 hover:underline">
+            <a href="#" className="text-sky-600 hover:underline">
               Terms and Conditions
             </a>
           </p>
@@ -244,4 +244,3 @@ export default function DeliverySignIn() {
     </div>
   )
 }
-

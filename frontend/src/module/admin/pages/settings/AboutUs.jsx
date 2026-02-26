@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { toast } from "sonner"
-import api, { adminAPI } from "@/lib/api"
+import api, { uploadAPI } from "@/lib/api"
 import { API_ENDPOINTS } from "@/lib/api/config"
-import { Heart, Users, Shield, Clock, Star, Award, Plus, X, GripVertical } from "lucide-react"
+import { Heart, Users, Shield, Clock, Star, Award, Plus, X, Upload, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useCompanyName } from "@/lib/hooks/useCompanyName"
+import { getModuleToken } from "@/lib/utils/auth"
 
 // Icon mapping
 const iconMap = {
@@ -40,8 +41,11 @@ const colorOptions = [
 ]
 
 export default function AboutUs() {
+  const companyName = useCompanyName()
+  const logoFileInputRef = useRef(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
   const [aboutData, setAboutData] = useState({
     appName: 'Appzeto Food',
     version: '1.0.0',
@@ -54,16 +58,68 @@ export default function AboutUs() {
     fetchAboutData()
   }, [])
 
+  const getAdminAuthConfig = () => {
+    const token = getModuleToken("admin") || localStorage.getItem("accessToken")
+    if (!token || token === "null" || token === "undefined") {
+      return null
+    }
+    return {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    }
+  }
+
+  const buildAboutPayload = (data) => {
+    const features = Array.isArray(data.features)
+      ? data.features
+          .filter((feature) => feature && feature.icon && String(feature.title || "").trim() && String(feature.description || "").trim())
+          .map((feature, index) => ({
+            icon: feature.icon,
+            title: String(feature.title || "").trim(),
+            description: String(feature.description || "").trim(),
+            color: feature.color || "text-gray-600",
+            bgColor: feature.bgColor || "bg-gray-100",
+            order: Number.isFinite(feature.order) ? feature.order : index
+          }))
+      : []
+
+    const stats = Array.isArray(data.stats)
+      ? data.stats
+          .filter((stat) => stat && stat.icon && String(stat.label || "").trim() && String(stat.value || "").trim())
+          .map((stat, index) => ({
+            label: String(stat.label || "").trim(),
+            value: String(stat.value || "").trim(),
+            icon: stat.icon,
+            order: Number.isFinite(stat.order) ? stat.order : index
+          }))
+      : []
+
+    return {
+      appName: String(data.appName || "").trim(),
+      version: String(data.version || "").trim(),
+      description: String(data.description || "").trim(),
+      logo: String(data.logo || "").trim(),
+      features,
+      stats
+    }
+  }
+
   const fetchAboutData = async () => {
     try {
       setLoading(true)
-      const response = await api.get(API_ENDPOINTS.ADMIN.ABOUT)
+      const authConfig = getAdminAuthConfig()
+      if (!authConfig) {
+        toast.error("Admin session not found. Please login again.")
+        return
+      }
+      const response = await api.get(API_ENDPOINTS.ADMIN.ABOUT, authConfig)
       if (response.data.success) {
         setAboutData(response.data.data)
       }
     } catch (error) {
       console.error('Error fetching about data:', error)
-      toast.error('Failed to load about page data')
+      toast.error(error?.response?.data?.message || 'Failed to load about page data')
     } finally {
       setLoading(false)
     }
@@ -71,11 +127,22 @@ export default function AboutUs() {
 
   const handleSave = async () => {
     try {
+      const payload = buildAboutPayload(aboutData)
+      if (!payload.appName || !payload.version || !payload.description) {
+        toast.error("App Name, Version and Description are required")
+        return
+      }
+      const authConfig = getAdminAuthConfig()
+      if (!authConfig) {
+        toast.error("Admin session expired. Please login again.")
+        return
+      }
+
       setSaving(true)
-      const response = await api.put(API_ENDPOINTS.ADMIN.ABOUT, aboutData)
+      const response = await api.put(API_ENDPOINTS.ADMIN.ABOUT, payload, authConfig)
       if (response.data.success) {
         toast.success('About page updated successfully')
-        setAboutData(response.data.data)
+        await fetchAboutData()
       }
     } catch (error) {
       console.error('Error saving about data:', error)
@@ -113,8 +180,13 @@ export default function AboutUs() {
       setAboutData(updatedData)
       
       // Save to backend immediately
+      const authConfig = getAdminAuthConfig()
+      if (!authConfig) {
+        toast.error("Admin session expired. Please login again.")
+        return
+      }
       setSaving(true)
-      const response = await api.put(API_ENDPOINTS.ADMIN.ABOUT, updatedData)
+      const response = await api.put(API_ENDPOINTS.ADMIN.ABOUT, buildAboutPayload(updatedData), authConfig)
       if (response.data.success) {
         toast.success('Feature deleted successfully')
         setAboutData(response.data.data)
@@ -146,6 +218,40 @@ export default function AboutUs() {
     })
   }
 
+  const handleLogoUploadClick = () => {
+    logoFileInputRef.current?.click()
+  }
+
+  const handleLogoFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file")
+      e.target.value = ""
+      return
+    }
+
+    try {
+      setUploadingLogo(true)
+      const response = await uploadAPI.uploadMedia(file, { folder: "about-page" })
+      const uploadedUrl = response?.data?.data?.url || response?.data?.url
+
+      if (!uploadedUrl) {
+        throw new Error("Failed to get uploaded image URL")
+      }
+
+      setAboutData((prev) => ({ ...prev, logo: uploadedUrl }))
+      toast.success("Logo uploaded successfully")
+    } catch (error) {
+      console.error("Error uploading logo:", error)
+      toast.error(error?.response?.data?.message || "Failed to upload logo")
+    } finally {
+      setUploadingLogo(false)
+      e.target.value = ""
+    }
+  }
+
   if (loading) {
     return (
       <div className="p-4 lg:p-6 bg-slate-50 min-h-screen flex items-center justify-center">
@@ -160,11 +266,29 @@ export default function AboutUs() {
   return (
     <div className="p-4 lg:p-6 bg-slate-50 min-h-screen">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">About Us</h1>
-          <p className="text-sm text-slate-600 mt-1">Manage your About page content</p>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">About Us</h1>
+            <p className="text-sm text-slate-600 mt-1">Manage your About page content</p>
+          </div>
+          <Button type="button" onClick={handleSave} disabled={saving} size="lg" className="whitespace-nowrap bg-sky-500 hover:bg-sky-600 text-white border-sky-500">
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Changes"
+            )}
+          </Button>
         </div>
 
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            handleSave()
+          }}
+        >
         {/* Basic Information */}
         <Card className="mb-6">
           <CardHeader>
@@ -204,13 +328,40 @@ export default function AboutUs() {
             </div>
             <div>
               <Label htmlFor="logo">Logo URL</Label>
-              <Input
-                id="logo"
-                value={aboutData.logo}
-                onChange={(e) => setAboutData(prev => ({ ...prev, logo: e.target.value }))}
-                placeholder="https://example.com/logo.png"
-                className="mt-1"
-              />
+              <div className="mt-1 flex items-center gap-2">
+                <Input
+                  id="logo"
+                  value={aboutData.logo}
+                  onChange={(e) => setAboutData(prev => ({ ...prev, logo: e.target.value }))}
+                  placeholder="https://example.com/logo.png"
+                />
+                <input
+                  ref={logoFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLogoFileChange}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleLogoUploadClick}
+                  disabled={uploadingLogo}
+                  className="whitespace-nowrap"
+                >
+                  {uploadingLogo ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Logo
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -312,10 +463,18 @@ export default function AboutUs() {
 
         {/* Save Button */}
         <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={saving} size="lg">
-            {saving ? 'Saving...' : 'Save Changes'}
+          <Button type="submit" disabled={saving} size="lg" className="bg-sky-500 hover:bg-sky-600 text-white border-sky-500">
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Changes"
+            )}
           </Button>
         </div>
+        </form>
       </div>
     </div>
   )

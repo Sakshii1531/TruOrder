@@ -2,6 +2,7 @@ import { asyncHandler } from '../../../shared/middleware/asyncHandler.js';
 import { successResponse, errorResponse } from '../../../shared/utils/response.js';
 import User from '../../auth/models/User.js';
 import { uploadToCloudinary } from '../../../shared/utils/cloudinaryService.js';
+import { upsertUserRealtime } from '../../../config/firebaseRealtime.js';
 import axios from 'axios';
 import winston from 'winston';
 
@@ -104,6 +105,18 @@ export const updateUserProfile = asyncHandler(async (req, res) => {
 
     // Save to database
     await user.save();
+
+    await upsertUserRealtime(user._id.toString(), {
+      lat: latNum,
+      lng: lngNum,
+      address: locationUpdate.address || '',
+      area: locationUpdate.area || '',
+      city: locationUpdate.city || '',
+      state: locationUpdate.state || '',
+      formatted_address: locationUpdate.formattedAddress || '',
+      accuracy: locationUpdate.accuracy ?? null,
+      last_updated: Date.now()
+    });
 
     // Remove password from response
     const userResponse = user.toObject();
@@ -515,4 +528,3 @@ export const deleteUserAddress = asyncHandler(async (req, res) => {
     return errorResponse(res, 500, 'Failed to delete address');
   }
 });
-

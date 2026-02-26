@@ -243,7 +243,7 @@ export default function Profile() {
 
   return (
     <AnimatedPage className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a]">
-      <div className="max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-4 sm:py-6 md:py-8 lg:py-10">
+      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 md:py-8 lg:py-10 text-black dark:text-white">
         {/* Back Arrow */}
         <div className="mb-4">
           <Link to="/user">
@@ -313,7 +313,7 @@ export default function Profile() {
                   </motion.div>
                   <div className="flex-1 min-w-0 flex flex-col">
                     <span className="text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">{companyName} Money</span>
-                    <span className="text-base font-semibold text-green-600 dark:text-green-400">₹{userProfile?.wallet?.balance?.toFixed(0) || '0'}</span>
+                    <span className="text-base font-semibold text-sky-600 dark:text-sky-400">₹{userProfile?.wallet?.balance?.toFixed(0) || '0'}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -395,8 +395,8 @@ export default function Profile() {
                   <div className="flex items-center gap-2">
                     <motion.span
                       className={`text-xs font-medium px-2 py-1 rounded ${isComplete
-                        ? 'bg-green-100 text-green-700 border border-green-300'
-                        : 'bg-yellow-200 text-yellow-800'
+                        ? 'bg-sky-100 text-sky-700 border border-sky-300'
+                        : 'bg-sky-50 text-sky-700 border border-sky-200'
                         }`}
                       whileHover={{ scale: 1.1 }}
                       transition={{ duration: 0.2 }}
@@ -496,7 +496,7 @@ export default function Profile() {
         {/* Collections Section */}
         <div className="mb-3">
           <div className="flex items-center gap-2 mb-2 px-1">
-            <div className="w-1 h-4 bg-green-600 rounded"></div>
+            <div className="w-1 h-4 bg-sky-600 rounded"></div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">Collections</h3>
           </div>
           <Link to="/user/profile/favorites">
@@ -531,7 +531,7 @@ export default function Profile() {
         {/* Food Orders Section */}
         <div className="mb-3">
           <div className="flex items-center gap-2 mb-2 px-1">
-            <div className="w-1 h-4 bg-green-600 rounded"></div>
+            <div className="w-1 h-4 bg-sky-600 rounded"></div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">Food Orders</h3>
           </div>
           <div className="space-y-2">
@@ -568,7 +568,7 @@ export default function Profile() {
         {/* Dining Bookings Section */}
         <div className="mb-3">
           <div className="flex items-center gap-2 mb-2 px-1">
-            <div className="w-1 h-4 bg-red-500 rounded"></div>
+            <div className="w-1 h-4 bg-sky-600 rounded"></div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">Dining</h3>
           </div>
           <div className="space-y-2">
@@ -605,7 +605,7 @@ export default function Profile() {
         {/* Coupons Section */}
         <div className="mb-3">
           <div className="flex items-center gap-2 mb-2 px-1">
-            <div className="w-1 h-4 bg-green-600 rounded"></div>
+            <div className="w-1 h-4 bg-sky-600 rounded"></div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">Coupons</h3>
           </div>
           <Link to="/user/profile/redeem-gold-coupon">
@@ -640,7 +640,7 @@ export default function Profile() {
         {/* More Section */}
         <div className="mb-6 pb-4">
           <div className="flex items-center gap-2 mb-2 px-1">
-            <div className="w-1 h-4 bg-green-600 rounded"></div>
+            <div className="w-1 h-4 bg-sky-600 rounded"></div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">More</h3>
           </div>
           <div className="space-y-2">
@@ -806,12 +806,12 @@ export default function Profile() {
                 setVegModeOpen(false)
               }}
               className={`w-full p-3 rounded-xl border-2 transition-all flex items-center justify-between ${vegMode
-                ? 'border-green-600 bg-green-50'
+                ? 'border-sky-600 bg-sky-50'
                 : 'border-gray-200 bg-white hover:border-gray-300'
                 }`}
             >
               <div className="flex items-center gap-3">
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${vegMode ? 'border-green-600 bg-green-600' : 'border-gray-300'
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${vegMode ? 'border-sky-600 bg-sky-600' : 'border-gray-300'
                   }`}>
                   {vegMode && <Check className="h-3 w-3 text-white" />}
                 </div>
@@ -820,7 +820,7 @@ export default function Profile() {
                   <p className="text-xs text-gray-500">Show only vegetarian options</p>
                 </div>
               </div>
-              <Leaf className={`h-5 w-5 ${vegMode ? 'text-green-600' : 'text-gray-400'}`} />
+              <Leaf className={`h-5 w-5 ${vegMode ? 'text-sky-600' : 'text-gray-400'}`} />
             </button>
             <button
               onClick={() => {
@@ -828,12 +828,12 @@ export default function Profile() {
                 setVegModeOpen(false)
               }}
               className={`w-full p-3 rounded-xl border-2 transition-all flex items-center justify-between ${!vegMode
-                ? 'border-red-600 bg-red-50'
+                ? 'border-sky-600 bg-sky-50'
                 : 'border-gray-200 bg-white hover:border-gray-300'
                 }`}
             >
               <div className="flex items-center gap-3">
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${!vegMode ? 'border-red-600 bg-red-600' : 'border-gray-300'
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${!vegMode ? 'border-sky-600 bg-sky-600' : 'border-gray-300'
                   }`}>
                   {!vegMode && <Check className="h-3 w-3 text-white" />}
                 </div>
@@ -904,4 +904,5 @@ export default function Profile() {
     </AnimatedPage>
   )
 }
+
 

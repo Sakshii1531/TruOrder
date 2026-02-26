@@ -1,11 +1,13 @@
 import { Link, useLocation } from "react-router-dom"
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState } from "react"
 import { ChevronDown, ShoppingCart, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useLocation as useLocationHook } from "../hooks/useLocation"
 import { useCart } from "../context/CartContext"
 import { useLocationSelector } from "./UserLayout"
 import { FaLocationDot } from "react-icons/fa6"
+import { getCachedSettings, loadBusinessSettings } from "@/lib/utils/businessSettings"
+import appzetoFoodLogo from "@/assets/appzetologo.png"
 
 export default function DesktopNavbar() {
   const location = useLocation()
@@ -13,8 +15,8 @@ export default function DesktopNavbar() {
   const { getCartCount } = useCart()
   const { openLocationSelector } = useLocationSelector()
   const cartCount = getCartCount()
-  const [isVisible, setIsVisible] = useState(true)
-  const lastScrollY = useRef(0)
+  const [logoUrl, setLogoUrl] = useState(null)
+  const [companyName, setCompanyName] = useState("TruOrder")
 
   // Show area if available, otherwise show city
   // Priority: area > city > "Select"
@@ -39,59 +41,86 @@ export default function DesktopNavbar() {
   const isProfile = location.pathname.startsWith("/profile") || location.pathname.startsWith("/user/profile")
   const isDelivery = !isDining && !isUnder250 && !isProfile && (location.pathname === "/" || location.pathname === "/user" || (location.pathname.startsWith("/") && !location.pathname.startsWith("/restaurant") && !location.pathname.startsWith("/delivery") && !location.pathname.startsWith("/admin") && !location.pathname.startsWith("/usermain")))
 
-  // Reset visibility and scroll position when route changes
   useEffect(() => {
-    setIsVisible(true)
-    lastScrollY.current = window.scrollY
-  }, [location.pathname])
+    const loadLogo = async () => {
+      try {
+        const cached = getCachedSettings()
+        if (cached) {
+          if (cached.logo?.url) {
+            setLogoUrl(cached.logo.url)
+          }
+          if (cached.companyName) {
+            setCompanyName(cached.companyName)
+          }
+        }
 
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY
-      const scrollDifference = Math.abs(currentScrollY - lastScrollY.current)
-
-      // Show navigation when at the top
-      if (currentScrollY < 10) {
-        setIsVisible(true)
-        lastScrollY.current = currentScrollY
-        return
+        const settings = await loadBusinessSettings()
+        if (settings) {
+          if (settings.logo?.url) {
+            setLogoUrl(settings.logo.url)
+          }
+          if (settings.companyName) {
+            setCompanyName(settings.companyName)
+          }
+        }
+      } catch (error) {
+        console.error("Error loading logo:", error)
       }
-
-      // Only update if scroll difference is significant (avoid flickering on tiny movements)
-      if (scrollDifference < 5) {
-        return
-      }
-
-      // Show when scrolling up, hide when scrolling down
-      if (currentScrollY < lastScrollY.current) {
-        // Scrolling up - show navigation
-        setIsVisible(true)
-      } else if (currentScrollY > lastScrollY.current) {
-        // Scrolling down - hide navigation
-        setIsVisible(false)
-      }
-
-      lastScrollY.current = currentScrollY
     }
 
-    window.addEventListener("scroll", handleScroll, { passive: true })
-    return () => window.removeEventListener("scroll", handleScroll)
-  }, [location.pathname])
+    loadLogo()
+
+    const handleSettingsUpdate = () => {
+      const cached = getCachedSettings()
+      if (cached) {
+        if (cached.logo?.url) {
+          setLogoUrl(cached.logo.url)
+        }
+        if (cached.companyName) {
+          setCompanyName(cached.companyName)
+        }
+      }
+    }
+
+    window.addEventListener("businessSettingsUpdated", handleSettingsUpdate)
+    return () => {
+      window.removeEventListener("businessSettingsUpdated", handleSettingsUpdate)
+    }
+  }, [])
 
   return (
     <nav
-      className={`hidden md:block fixed top-0 left-0 right-0 z-50 transition-transform duration-300 ease-in-out ${isVisible ? "translate-y-0" : "-translate-y-full"
-        }`}
+      className="hidden md:block fixed top-0 left-0 right-0 z-50"
     >
       {/* Background */}
       <div className="absolute inset-0 bg-white/98 dark:bg-[#1a1a1a]/98 border-b border-gray-200/50 dark:border-gray-800/50 shadow-sm" />
 
       {/* Content */}
       <div className="relative">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Left: Location */}
-            <div className="flex items-center gap-3 lg:gap-4 min-w-0">
+            <div className="flex items-center gap-8 lg:gap-10 min-w-0">
+              <Link to="/user" className="flex items-center flex-shrink-0">
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt="Company Logo"
+                    className="h-8 lg:h-9 w-auto object-contain"
+                    crossOrigin="anonymous"
+                    onError={(e) => {
+                      e.target.src = appzetoFoodLogo
+                    }}
+                  />
+                ) : (
+                  <img
+                    src={appzetoFoodLogo}
+                    alt={`${companyName} Logo`}
+                    className="h-8 lg:h-9 w-auto object-contain"
+                  />
+                )}
+              </Link>
+
               <Button
                 variant="ghost"
                 onClick={handleLocationClick}
@@ -125,76 +154,69 @@ export default function DesktopNavbar() {
               </Button>
             </div>
 
-            {/* Center: Navigation Tabs */}
-            <div className="flex items-center space-x-1">
-              {/* Delivery Tab */}
-              <Link
-                to="/user"
-                className={`px-6 py-2.5 text-sm font-medium transition-all duration-200 relative ${isDelivery
-                  ? "text-sky-600 dark:text-sky-500"
-                  : "text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-500"
-                  }`}
-              >
-                <span className="relative z-10">Delivery</span>
-                {isDelivery && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-600 dark:bg-sky-500 rounded-t-full" />
-                )}
-              </Link>
+            {/* Right: Nav Tabs + Wallet and Cart Icons */}
+            <div className="flex items-center justify-end gap-4 lg:gap-6">
+              <div className="flex items-center space-x-1">
+                <Link
+                  to="/user"
+                  className={`px-6 py-2.5 text-sm font-medium transition-all duration-200 relative ${isDelivery
+                    ? "text-sky-600 dark:text-sky-500"
+                    : "text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-500"
+                    }`}
+                >
+                  <span className="relative z-10">Delivery</span>
+                  {isDelivery && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-600 dark:bg-sky-500 rounded-t-full" />
+                  )}
+                </Link>
 
-              {/* Divider */}
-              <div className="h-6 w-px bg-gray-300 dark:bg-gray-700" />
+                <div className="h-6 w-px bg-gray-300 dark:bg-gray-700" />
 
-              {/* Under 250 Tab */}
-              <Link
-                to="/user/under-250"
-                className={`px-6 py-2.5 text-sm font-medium transition-all duration-200 relative ${isUnder250
-                  ? "text-sky-600 dark:text-sky-500"
-                  : "text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-500"
-                  }`}
-              >
-                <span className="relative z-10">Under 250</span>
-                {isUnder250 && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-600 dark:bg-sky-500 rounded-t-full" />
-                )}
-              </Link>
+                <Link
+                  to="/user/under-250"
+                  className={`px-6 py-2.5 text-sm font-medium transition-all duration-200 relative ${isUnder250
+                    ? "text-sky-600 dark:text-sky-500"
+                    : "text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-500"
+                    }`}
+                >
+                  <span className="relative z-10">Under 250</span>
+                  {isUnder250 && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-600 dark:bg-sky-500 rounded-t-full" />
+                  )}
+                </Link>
 
-              {/* Divider */}
-              <div className="h-6 w-px bg-gray-300 dark:bg-gray-700" />
+                <div className="h-6 w-px bg-gray-300 dark:bg-gray-700" />
 
-              {/* Dining Tab */}
-              <Link
-                to="/user/dining"
-                className={`px-6 py-2.5 text-sm font-medium transition-all duration-200 relative ${isDining
-                  ? "text-sky-600 dark:text-sky-500"
-                  : "text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-500"
-                  }`}
-              >
-                <span className="relative z-10">Dining</span>
-                {isDining && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-600 dark:bg-sky-500 rounded-t-full" />
-                )}
-              </Link>
+                <Link
+                  to="/user/dining"
+                  className={`px-6 py-2.5 text-sm font-medium transition-all duration-200 relative ${isDining
+                    ? "text-sky-600 dark:text-sky-500"
+                    : "text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-500"
+                    }`}
+                >
+                  <span className="relative z-10">Dining</span>
+                  {isDining && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-600 dark:bg-sky-500 rounded-t-full" />
+                  )}
+                </Link>
 
-              {/* Divider */}
-              <div className="h-6 w-px bg-gray-300 dark:bg-gray-700" />
+                <div className="h-6 w-px bg-gray-300 dark:bg-gray-700" />
 
-              {/* Profile Tab */}
-              <Link
-                to="/user/profile"
-                className={`px-6 py-2.5 text-sm font-medium transition-all duration-200 relative ${isProfile
-                  ? "text-sky-600 dark:text-sky-500"
-                  : "text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-500"
-                  }`}
-              >
-                <span className="relative z-10">Profile</span>
-                {isProfile && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-600 dark:bg-sky-500 rounded-t-full" />
-                )}
-              </Link>
-            </div>
+                <Link
+                  to="/user/profile"
+                  className={`px-6 py-2.5 text-sm font-medium transition-all duration-200 relative ${isProfile
+                    ? "text-sky-600 dark:text-sky-500"
+                    : "text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-500"
+                    }`}
+                >
+                  <span className="relative z-10">Profile</span>
+                  {isProfile && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-600 dark:bg-sky-500 rounded-t-full" />
+                  )}
+                </Link>
+              </div>
 
-            {/* Right: Wallet and Cart Icons */}
-            <div className="flex items-center gap-2 lg:gap-3 flex-shrink-0">
+              <div className="flex items-center gap-2 lg:gap-3">
               {/* Wallet Icon */}
               <Link to="/user/wallet">
                 <Button
@@ -227,7 +249,9 @@ export default function DesktopNavbar() {
           </div>
         </div>
       </div>
+      </div>
     </nav>
   )
 }
+
 

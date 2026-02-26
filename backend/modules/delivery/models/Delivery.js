@@ -259,6 +259,11 @@ const deliverySchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Hub',
       index: true
+    },
+    cityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'City',
+      index: true
     }
   },
 

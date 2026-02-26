@@ -16,6 +16,7 @@ dotenv.config();
 // Import configurations
 import { connectDB } from './config/database.js';
 import { connectRedis } from './config/redis.js';
+import { initializeFirebaseRealtime } from './config/firebaseRealtime.js';
 
 // Import middleware
 import { errorHandler } from './shared/middleware/errorHandler.js';
@@ -53,6 +54,9 @@ import heroBannerRoutes from './modules/heroBanner/index.js';
 import diningRoutes from './modules/dining/index.js';
 import diningAdminRoutes from './modules/dining/routes/diningAdminRoutes.js';
 
+
+// Initialize Firebase Realtime DB before socket/routes setup
+initializeFirebaseRealtime();
 
 // Validate required environment variables
 const requiredEnvVars = ['JWT_SECRET', 'MONGODB_URI'];
@@ -655,4 +659,3 @@ process.on('unhandledRejection', (err) => {
 });
 
 export default app;
-
