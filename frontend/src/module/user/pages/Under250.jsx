@@ -1,12 +1,13 @@
 import { Link, useNavigate } from "react-router-dom"
 import { useState, useMemo, useCallback, useEffect, useRef } from "react"
-import { Star, Clock, MapPin, ArrowDownUp, Timer, ArrowRight, ChevronDown, Bookmark, Share2, Plus, Minus, X } from "lucide-react"
+import { Star, Clock, MapPin, ArrowDownUp, Timer, ArrowRight, ChevronDown, Bookmark, Share2, Plus, Minus, X, Search, Mic, Loader2, BadgePercent } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
 import AnimatedPage from "../components/AnimatedPage"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useLocationSelector } from "../components/UserLayout"
+import { Input } from "@/components/ui/input"
+import { useSearchOverlay, useLocationSelector } from "../components/UserLayout"
 import { useLocation } from "../hooks/useLocation"
 import { useZone } from "../hooks/useZone"
 import { useCart } from "../context/CartContext"
@@ -41,6 +42,23 @@ export default function Under250() {
   const [loadingBanner, setLoadingBanner] = useState(true)
   const [under250Restaurants, setUnder250Restaurants] = useState([])
   const [loadingRestaurants, setLoadingRestaurants] = useState(true)
+  const [heroSearch, setHeroSearch] = useState("")
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0)
+  const [heroBannerImages, setHeroBannerImages] = useState([])
+  const autoSlideIntervalRef = useRef(null)
+  const touchStartX = useRef(0)
+  const touchStartY = useRef(0)
+  const touchEndX = useRef(0)
+  const touchEndY = useRef(0)
+  const isSwiping = useRef(false)
+  const { openSearch, closeSearch, setSearchValue } = useSearchOverlay()
+
+  const handleSearchFocus = useCallback(() => {
+    if (heroSearch) {
+      setSearchValue(heroSearch)
+    }
+    openSearch()
+  }, [heroSearch, openSearch, setSearchValue])
 
   const sortOptions = [
     { id: null, label: 'Relevance' },
@@ -139,15 +157,13 @@ export default function Under250() {
       try {
         setLoadingBanner(true)
         const response = await api.get('/hero-banners/under-250/public')
-        if (response.data.success && response.data.data.banners && response.data.data.banners.length > 0) {
-          // Use the first banner
-          setBannerImage(response.data.data.banners[0])
-        } else {
-          setBannerImage(null)
+        if (response.data.success && response.data.data.banners) {
+          const banners = response.data.data.banners
+          setHeroBannerImages(banners.map(b => b.imageUrl || b))
         }
       } catch (error) {
         console.error('Error fetching under 250 banners:', error)
-        setBannerImage(null)
+        setHeroBannerImages([])
       } finally {
         setLoadingBanner(false)
       }
@@ -155,6 +171,90 @@ export default function Under250() {
 
     fetchBanners()
   }, [])
+
+  // Auto-cycle hero banner
+  useEffect(() => {
+    if (heroBannerImages.length <= 1) return
+
+    autoSlideIntervalRef.current = setInterval(() => {
+      if (!isSwiping.current) {
+        setCurrentBannerIndex((prev) => (prev + 1) % heroBannerImages.length)
+      }
+    }, 10000)
+
+    return () => {
+      if (autoSlideIntervalRef.current) {
+        clearInterval(autoSlideIntervalRef.current)
+      }
+    }
+  }, [heroBannerImages.length])
+
+  const resetAutoSlide = useCallback(() => {
+    if (autoSlideIntervalRef.current) {
+      clearInterval(autoSlideIntervalRef.current)
+    }
+    if (heroBannerImages.length > 1) {
+      autoSlideIntervalRef.current = setInterval(() => {
+        if (!isSwiping.current) {
+          setCurrentBannerIndex((prev) => (prev + 1) % heroBannerImages.length)
+        }
+      }, 10000)
+    }
+  }, [heroBannerImages.length])
+
+  // Swipe/Mouse handlers
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+    isSwiping.current = true
+  }
+
+  const handleTouchMove = (e) => {
+    touchEndX.current = e.touches[0].clientX
+    touchEndY.current = e.touches[0].clientY
+  }
+
+  const handleTouchEnd = () => {
+    if (!isSwiping.current || heroBannerImages.length === 0) return
+    const deltaX = touchEndX.current - touchStartX.current
+    const deltaY = Math.abs(touchEndY.current - touchStartY.current)
+    if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > deltaY) {
+      if (deltaX > 0) {
+        setCurrentBannerIndex((prev) => (prev - 1 + heroBannerImages.length) % heroBannerImages.length)
+      } else {
+        setCurrentBannerIndex((prev) => (prev + 1) % heroBannerImages.length)
+      }
+      resetAutoSlide()
+    }
+    setTimeout(() => { isSwiping.current = false }, 300)
+  }
+
+  const handleMouseDown = (e) => {
+    touchStartX.current = e.clientX
+    touchStartY.current = e.clientY
+    isSwiping.current = true
+  }
+
+  const handleMouseMove = (e) => {
+    if (!isSwiping.current) return
+    touchEndX.current = e.clientX
+    touchEndY.current = e.clientY
+  }
+
+  const handleMouseUp = () => {
+    if (!isSwiping.current || heroBannerImages.length === 0) return
+    const deltaX = touchEndX.current - touchStartX.current
+    const deltaY = Math.abs(touchEndY.current - touchStartY.current)
+    if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > deltaY) {
+      if (deltaX > 0) {
+        setCurrentBannerIndex((prev) => (prev - 1 + heroBannerImages.length) % heroBannerImages.length)
+      } else {
+        setCurrentBannerIndex((prev) => (prev + 1) % heroBannerImages.length)
+      }
+      resetAutoSlide()
+    }
+    setTimeout(() => { isSwiping.current = false }, 300)
+  }
 
   // Fetch restaurants with dishes under ₹250 from backend
   useEffect(() => {
@@ -381,33 +481,168 @@ export default function Under250() {
   return (
 
     <div className={`relative min-h-screen bg-white dark:bg-[#0a0a0a] ${shouldShowGrayscale ? 'grayscale opacity-75' : ''}`}>
-      {/* Banner Section with Navbar */}
-      <div className="relative w-full overflow-hidden min-h-[39vh] lg:min-h-[50vh] md:pt-16">
-        {/* Banner Image */}
-        {bannerImage && (
-          <div className="absolute top-0 left-0 right-0 bottom-0 z-0">
-            <OptimizedImage
-              src={bannerImage}
-              alt="Under 250 Banner"
-              className="w-full h-full"
-              objectFit="cover"
-              priority={true}
-              sizes="100vw"
-            />
-          </div>
-        )}
-        {!bannerImage && !loadingBanner && (
-          <div className="absolute top-0 left-0 right-0 bottom-0 z-0 bg-gradient-to-br from-green-100 to-blue-100 dark:from-green-900 dark:to-blue-900" />
-        )}
+      {/* MOBILE VIEW (Original Structure) */}
+      <div className="md:hidden">
+        <div className="relative w-full overflow-hidden min-h-[39vh]">
+          {/* Banner Image */}
+          {heroBannerImages.length > 0 && (
+            <div className="absolute top-0 left-0 right-0 bottom-0 z-0">
+              <OptimizedImage
+                src={heroBannerImages[currentBannerIndex]}
+                alt="Under 250 Banner"
+                className="w-full h-full"
+                objectFit="cover"
+                priority={true}
+                sizes="100vw"
+              />
+            </div>
+          )}
+          {heroBannerImages.length === 0 && !loadingBanner && (
+            <div className="absolute top-0 left-0 right-0 bottom-0 z-0 bg-gradient-to-br from-green-100 to-blue-100 dark:from-green-900 dark:to-blue-900" />
+          )}
 
-        {/* Navbar */}
-        <div className="relative z-20 pt-2 sm:pt-3 lg:pt-4">
-          <PageNavbar textColor="black" zIndex={20} showProfile={true} />
+          {/* Navbar */}
+          <div className="relative z-20 pt-2 sm:pt-3">
+            <div className="w-full mx-auto px-4">
+              <PageNavbar textColor="black" zIndex={20} showProfile={true} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* DESKTOP VIEW (Premium New Structure) */}
+      <div className="hidden md:block">
+        {/* 1. Navbar Section */}
+        <div className="bg-white h-16 relative z-30">
+          <div className="w-full max-w-[1100px] mx-auto">
+            <PageNavbar textColor="black" zIndex={30} />
+          </div>
+        </div>
+
+        {/* 2. Search Section */}
+        <div className="bg-white pt-4 pb-6 px-3 sm:px-6 lg:px-8 relative z-30">
+          <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="flex-1 relative">
+                <div className="relative bg-white dark:bg-[#1a1a1a] rounded-2xl border border-slate-200 dark:border-slate-700 px-3 sm:px-4 lg:px-5 py-1.5 shadow-sm transition-all duration-300 focus-within:border-sky-300 focus-within:shadow-[0_0_0_3px_rgba(14,165,233,0.12)]">
+                  <div className="flex items-center gap-2 sm:gap-3 lg:gap-4">
+                    <Search className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-slate-500 flex-shrink-0" strokeWidth={2.5} />
+                    <div className="flex-1">
+                      <Input
+                        value={heroSearch}
+                        onChange={(e) => setHeroSearch(e.target.value)}
+                        onFocus={handleSearchFocus}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && heroSearch.trim()) {
+                            navigate(`/user/search?q=${encodeURIComponent(heroSearch.trim())}`)
+                            closeSearch()
+                            setHeroSearch("")
+                          }
+                        }}
+                        placeholder='Search "under 250"'
+                        className="pl-0 pr-2 h-7 sm:h-8 lg:h-10 w-full bg-transparent !border-0 !shadow-none text-sm sm:text-base lg:text-lg font-semibold text-gray-700 dark:text-white focus-visible:!ring-0 rounded-none placeholder:text-gray-500"
+                      />
+                    </div>
+                    <button type="button" onClick={handleSearchFocus} className="flex-shrink-0 p-1.5 lg:p-2 bg-sky-50 dark:bg-sky-900/30 rounded-full">
+                      <Mic className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-gray-500" strokeWidth={2.5} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Hero Banner Section */}
+        <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+          <div
+            className="relative w-full overflow-hidden aspect-[4/1] lg:aspect-[3.3/1] rounded-3xl bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-900/10 dark:to-blue-900/10 shadow-sm group/banner"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
+            {loadingBanner ? (
+              <div className="absolute inset-0 z-0 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                <div className="text-gray-400 text-center">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+                  <p className="text-sm">Loading banners...</p>
+                </div>
+              </div>
+            ) : heroBannerImages.length > 0 ? (
+              <>
+                <motion.div
+                  className="flex h-full"
+                  animate={{
+                    x: `-${currentBannerIndex * 100}%`
+                  }}
+                  transition={{
+                    duration: 0.6,
+                    ease: [0.32, 0.72, 0, 1]
+                  }}
+                  style={{
+                    width: `${heroBannerImages.length * 100}%`
+                  }}
+                >
+                  {heroBannerImages.map((image, index) => (
+                    <div
+                      key={index}
+                      className="h-full flex-shrink-0 relative"
+                      style={{ width: `${100 / heroBannerImages.length}%` }}
+                    >
+                      <div className="w-full h-full transform transition-transform duration-700 group-hover/banner:scale-[1.02]">
+                        <OptimizedImage
+                          src={image}
+                          alt={`Under 250 Banner ${index + 1}`}
+                          className="w-full h-full"
+                          priority={index === 0}
+                          sizes="(max-width: 1100px) 100vw, 1100px"
+                          objectFit="cover"
+                          placeholder="blur"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </motion.div>
+
+                {/* Banner Indicators (Dots) */}
+                {heroBannerImages.length > 1 && (
+                  <div className="absolute bottom-4 left-0 right-0 flex justify-center items-center gap-1.5 z-10">
+                    {heroBannerImages.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setCurrentBannerIndex(index)
+                          resetAutoSlide()
+                        }}
+                        className={`h-1.5 transition-all duration-300 rounded-full ${index === currentBannerIndex
+                          ? "w-6 bg-white shadow-sm"
+                          : "w-1.5 bg-white/50 hover:bg-white/70"
+                          }`}
+                        aria-label={`Go to slide ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="absolute inset-0 z-0 bg-gradient-to-br from-green-100 to-blue-100 dark:from-green-900 dark:to-blue-900 flex items-center justify-center">
+                <div className="text-green-600/50 flex flex-col items-center">
+                  <BadgePercent className="w-12 h-12 mb-2 opacity-50" />
+                  <p className="font-semibold">Exciting Offers Under ₹250</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Content Section */}
-      <div className="relative max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 xl:px-12 space-y-0 pt-2 sm:pt-3 md:pt-4 lg:pt-6 pb-6 md:pb-8 lg:pb-10">
+      <div className="relative max-w-[1100px] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 space-y-0 pt-2 sm:pt-3 md:pt-4 lg:pt-6 pb-6 md:pb-8 lg:pb-10">
 
         <section className="space-y-1 sm:space-y-1.5">
           <div

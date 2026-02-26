@@ -1,0 +1,18 @@
+{
+  "default_branch": "main",
+  "branches": [
+    "feature/hub-management",
+    "main",
+    "origin"
+  ],
+  "parent": {
+    "feature/hub-management": "main",
+    "main": null,
+    "origin": "main"
+  },
+  "order": [
+    "main",
+    "feature/hub-management",
+    "origin"
+  ]
+}
