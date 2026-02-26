@@ -1806,6 +1806,34 @@ export const adminAPI = {
       API_ENDPOINTS.ADMIN.FEEDBACK_EXPERIENCE_BY_ID.replace(":id", id),
     );
   },
+
+  // ── City Management ─────────────────────────────────────────────────
+  getCities: (params = {}) => {
+    return apiClient.get("/admin/cities", { params });
+  },
+  createCity: (data) => {
+    return apiClient.post("/admin/cities", data);
+  },
+  updateCity: (id, data) => {
+    return apiClient.put(`/admin/cities/${id}`, data);
+  },
+  deleteCity: (id) => {
+    return apiClient.delete(`/admin/cities/${id}`);
+  },
+
+  // ── Hub Management ───────────────────────────────────────────────────
+  getHubs: (params = {}) => {
+    return apiClient.get("/admin/hubs", { params });
+  },
+  createHub: (data) => {
+    return apiClient.post("/admin/hubs", data);
+  },
+  updateHub: (id, data) => {
+    return apiClient.put(`/admin/hubs/${id}`, data);
+  },
+  deleteHub: (id) => {
+    return apiClient.delete(`/admin/hubs/${id}`);
+  },
 };
 
 // Upload / media helper functions

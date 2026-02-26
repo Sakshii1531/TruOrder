@@ -18,6 +18,9 @@ firebaseconfig.json
 **/*adminsdk*.json
 **/*.pem
 **/*.key
+backend/config/*.json
+**/config/*.json
+*.json   # prevents any accidental secret upload
 
 # =========================
 # Logs

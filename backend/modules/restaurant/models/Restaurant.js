@@ -276,6 +276,19 @@ const restaurantSchema = new mongoose.Schema(
         default: "family-dining", // e.g., 'fine-dining', 'cafe', 'casual-dining'
       },
     },
+    // Hub-based architecture fields
+    cityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "City",
+      default: null,
+      index: true,
+    },
+    hubId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Hub",
+      default: null,
+      index: true,
+    },
     businessModel: {
       type: String,
       enum: ["Commission Base", "Subscription Base"],

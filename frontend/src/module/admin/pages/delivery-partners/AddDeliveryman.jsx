@@ -1,6 +1,7 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Upload, Calendar, Eye, EyeOff, Settings } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { adminAPI } from "@/lib/api"
 
 export default function AddDeliveryman() {
   const [formData, setFormData] = useState({
@@ -17,12 +18,57 @@ export default function AddDeliveryman() {
     phone: "+1",
     password: "",
     confirmPassword: "",
+    cityId: "",
+    hubId: "",
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
   const [formErrors, setFormErrors] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // City & Hub selection state
+  const [cities, setCities] = useState([])
+  const [hubs, setHubs] = useState([])
+  const [loadingCities, setLoadingCities] = useState(false)
+  const [loadingHubs, setLoadingHubs] = useState(false)
+
+  // Load active cities on mount
+  useEffect(() => {
+    const fetchCities = async () => {
+      try {
+        setLoadingCities(true)
+        const res = await adminAPI.getCities({ status: "active" })
+        if (res.data?.success) setCities(res.data.data?.cities || [])
+      } catch (err) {
+        console.error("Failed to load cities:", err)
+      } finally {
+        setLoadingCities(false)
+      }
+    }
+    fetchCities()
+  }, [])
+
+  // Load hubs when city changes
+  useEffect(() => {
+    if (!formData.cityId) {
+      setHubs([])
+      setFormData(prev => ({ ...prev, hubId: "" }))
+      return
+    }
+    const fetchHubs = async () => {
+      try {
+        setLoadingHubs(true)
+        const res = await adminAPI.getHubs({ cityId: formData.cityId, status: "active" })
+        if (res.data?.success) setHubs(res.data.data?.hubs || [])
+      } catch (err) {
+        console.error("Failed to load hubs:", err)
+      } finally {
+        setLoadingHubs(false)
+      }
+    }
+    fetchHubs()
+  }, [formData.cityId])
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -56,7 +102,7 @@ export default function AddDeliveryman() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validateForm()) return
-    
+
     setIsSubmitting(true)
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000))
@@ -80,7 +126,10 @@ export default function AddDeliveryman() {
       phone: "+1",
       password: "",
       confirmPassword: "",
+      cityId: "",
+      hubId: "",
     })
+    setHubs([])
   }
 
   return (
@@ -108,9 +157,8 @@ export default function AddDeliveryman() {
                     value={formData.firstName}
                     onChange={(e) => handleInputChange("firstName", e.target.value)}
                     placeholder="Ex: Jhone"
-                    className={`w-full px-4 py-2.5 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                      formErrors.firstName ? "border-red-500" : "border-slate-300"
-                    }`}
+                    className={`w-full px-4 py-2.5 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${formErrors.firstName ? "border-red-500" : "border-slate-300"
+                      }`}
                   />
                   {formErrors.firstName && <p className="text-xs text-red-500 mt-1">{formErrors.firstName}</p>}
                 </div>
@@ -124,9 +172,8 @@ export default function AddDeliveryman() {
                     value={formData.lastName}
                     onChange={(e) => handleInputChange("lastName", e.target.value)}
                     placeholder="Ex: Joe"
-                    className={`w-full px-4 py-2.5 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                      formErrors.lastName ? "border-red-500" : "border-slate-300"
-                    }`}
+                    className={`w-full px-4 py-2.5 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${formErrors.lastName ? "border-red-500" : "border-slate-300"
+                      }`}
                   />
                   {formErrors.lastName && <p className="text-xs text-red-500 mt-1">{formErrors.lastName}</p>}
                 </div>
@@ -140,9 +187,8 @@ export default function AddDeliveryman() {
                     value={formData.email}
                     onChange={(e) => handleInputChange("email", e.target.value)}
                     placeholder="Ex: ex@example.com"
-                    className={`w-full px-4 py-2.5 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
-                      formErrors.email ? "border-red-500" : "border-slate-300"
-                    }`}
+                    className={`w-full px-4 py-2.5 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${formErrors.email ? "border-red-500" : "border-slate-300"
+                      }`}
                   />
                   {formErrors.email && <p className="text-xs text-red-500 mt-1">{formErrors.email}</p>}
                 </div>
@@ -174,6 +220,44 @@ export default function AddDeliveryman() {
                     <option value="">Select Zone</option>
                     <option value="asia">Asia</option>
                     <option value="europe">Europe</option>
+                  </select>
+                </div>
+
+                {/* City Assignment */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    City <span className="text-slate-400 font-normal text-xs">(optional)</span>
+                  </label>
+                  <select
+                    value={formData.cityId}
+                    onChange={(e) => handleInputChange("cityId", e.target.value)}
+                    disabled={loadingCities}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm disabled:opacity-60"
+                  >
+                    <option value="">{loadingCities ? "Loading cities..." : "Select City"}</option>
+                    {cities.map(city => (
+                      <option key={city._id} value={city._id}>{city.cityName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Hub Assignment */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Hub <span className="text-slate-400 font-normal text-xs">(optional)</span>
+                  </label>
+                  <select
+                    value={formData.hubId}
+                    onChange={(e) => handleInputChange("hubId", e.target.value)}
+                    disabled={!formData.cityId || loadingHubs}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm disabled:opacity-60"
+                  >
+                    <option value="">
+                      {!formData.cityId ? "Select a city first" : loadingHubs ? "Loading hubs..." : hubs.length === 0 ? "No hubs in this city" : "Select Hub"}
+                    </option>
+                    {hubs.map(hub => (
+                      <option key={hub._id} value={hub._id}>{hub.hubName}</option>
+                    ))}
                   </select>
                 </div>
 

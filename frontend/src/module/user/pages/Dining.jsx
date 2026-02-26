@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
-import { MapPin, Search, Mic, SlidersHorizontal, Star, X, ArrowDownUp, Timer, IndianRupee, UtensilsCrossed, BadgePercent, ShieldCheck, Clock, Bookmark, Check } from "lucide-react"
+import { MapPin, Search, Mic, SlidersHorizontal, Star, X, ArrowDownUp, Timer, IndianRupee, UtensilsCrossed, BadgePercent, ShieldCheck, Clock, Bookmark, Check, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -77,23 +77,120 @@ export default function Dining() {
   const [bankOfferItems, setBankOfferItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [diningHeroBanner, setDiningHeroBanner] = useState(null)
+  const [loadingBanner, setLoadingBanner] = useState(true)
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0)
+  const [heroBannerImages, setHeroBannerImages] = useState([])
+  const autoSlideIntervalRef = useRef(null)
+  const touchStartX = useRef(0)
+  const touchStartY = useRef(0)
+  const touchEndX = useRef(0)
+  const touchEndY = useRef(0)
+  const isSwiping = useRef(false)
 
   useEffect(() => {
     const fetchDiningHeroBanner = async () => {
       try {
+        setLoadingBanner(true)
         const response = await api.get('/hero-banners/dining/public')
-        if (response.data.success && response.data.data.banners && response.data.data.banners.length > 0) {
-          setDiningHeroBanner(response.data.data.banners[0])
+        if (response.data.success && response.data.data.banners) {
+          const banners = response.data.data.banners
+          setHeroBannerImages(banners.map(b => b.imageUrl || b))
         } else {
-          setDiningHeroBanner(diningBanner)
+          setHeroBannerImages([diningBanner])
         }
       } catch (error) {
         console.error("Failed to fetch dining hero banner", error)
-        setDiningHeroBanner(diningBanner)
+        setHeroBannerImages([diningBanner])
+      } finally {
+        setLoadingBanner(false)
       }
     }
     fetchDiningHeroBanner()
   }, [])
+
+  // Auto-cycle hero banner
+  useEffect(() => {
+    if (heroBannerImages.length <= 1) return
+
+    autoSlideIntervalRef.current = setInterval(() => {
+      if (!isSwiping.current) {
+        setCurrentBannerIndex((prev) => (prev + 1) % heroBannerImages.length)
+      }
+    }, 10000)
+
+    return () => {
+      if (autoSlideIntervalRef.current) {
+        clearInterval(autoSlideIntervalRef.current)
+      }
+    }
+  }, [heroBannerImages.length])
+
+  const resetAutoSlide = useCallback(() => {
+    if (autoSlideIntervalRef.current) {
+      clearInterval(autoSlideIntervalRef.current)
+    }
+    if (heroBannerImages.length > 1) {
+      autoSlideIntervalRef.current = setInterval(() => {
+        if (!isSwiping.current) {
+          setCurrentBannerIndex((prev) => (prev + 1) % heroBannerImages.length)
+        }
+      }, 10000)
+    }
+  }, [heroBannerImages.length])
+
+  // Swipe/Mouse handlers
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX
+    touchStartY.current = e.touches[0].clientY
+    isSwiping.current = true
+  }
+
+  const handleTouchMove = (e) => {
+    touchEndX.current = e.touches[0].clientX
+    touchEndY.current = e.touches[0].clientY
+  }
+
+  const handleTouchEnd = () => {
+    if (!isSwiping.current || heroBannerImages.length === 0) return
+    const deltaX = touchEndX.current - touchStartX.current
+    const deltaY = Math.abs(touchEndY.current - touchStartY.current)
+    if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > deltaY) {
+      if (deltaX > 0) {
+        setCurrentBannerIndex((prev) => (prev - 1 + heroBannerImages.length) % heroBannerImages.length)
+      } else {
+        setCurrentBannerIndex((prev) => (prev + 1) % heroBannerImages.length)
+      }
+      resetAutoSlide()
+    }
+    setTimeout(() => { isSwiping.current = false }, 300)
+  }
+
+  const handleMouseDown = (e) => {
+    touchStartX.current = e.clientX
+    touchStartY.current = e.clientY
+    isSwiping.current = true
+  }
+
+  const handleMouseMove = (e) => {
+    if (!isSwiping.current) return
+    touchEndX.current = e.clientX
+    touchEndY.current = e.clientY
+  }
+
+  const handleMouseUp = () => {
+    if (!isSwiping.current || heroBannerImages.length === 0) return
+    const deltaX = touchEndX.current - touchStartX.current
+    const deltaY = Math.abs(touchEndY.current - touchStartY.current)
+    if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > deltaY) {
+      if (deltaX > 0) {
+        setCurrentBannerIndex((prev) => (prev - 1 + heroBannerImages.length) % heroBannerImages.length)
+      } else {
+        setCurrentBannerIndex((prev) => (prev + 1) % heroBannerImages.length)
+      }
+      resetAutoSlide()
+    }
+    setTimeout(() => { isSwiping.current = false }, 300)
+  }
 
   useEffect(() => {
     const fetchDiningData = async () => {
@@ -209,44 +306,41 @@ export default function Dining() {
   return (
     <AnimatedPage className="bg-white dark:bg-[#0a0a0a]" style={{ minHeight: '100vh', paddingBottom: '80px', overflow: 'visible' }}>
       {/* 1. Navbar Section - Distinct Block */}
-      <div className="bg-white pt-2 sm:pt-3 lg:pt-4 pb-2 relative z-30">
-        <PageNavbar
-          textColor="black"
-          zIndex={30}
-          onNavClick={(e) => e.stopPropagation()}
-        />
+      <div className="bg-white pt-2 sm:pt-3 lg:pt-4 pb-2 relative z-30 md:hidden">
+        <div className="w-full max-w-[1100px] mx-auto">
+          <PageNavbar textColor="black" zIndex={30} />
+        </div>
       </div>
+      <div className="hidden md:block h-16 bg-white" />
 
-      {/* 2. Search Section - Distinct Block below Navbar */}
-      <div className="bg-white pb-6 px-3 sm:px-6 lg:px-8 relative z-30">
-        <div className="max-w-7xl mx-auto">
-          <div className="w-full relative max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto">
-            <div className="relative bg-gray-100 dark:bg-[#1a1a1a] rounded-xl lg:rounded-2xl border-none p-1 sm:p-1.5 lg:p-2 transition-all duration-300">
-              <div className="flex items-center gap-2 sm:gap-3 lg:gap-4">
-                <Search className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-gray-500 flex-shrink-0 ml-2 sm:ml-3 lg:ml-4" strokeWidth={2.5} />
-                <div className="flex-1 relative">
-                  <Input
-                    value={heroSearch}
-                    onChange={(e) => setHeroSearch(e.target.value)}
-                    onFocus={handleSearchFocus}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && heroSearch.trim()) {
-                        navigate(`/user/search?q=${encodeURIComponent(heroSearch.trim())}`)
-                        closeSearch()
-                        setHeroSearch("")
-                      }
-                    }}
-                    className="pl-0 pr-2 h-8 sm:h-9 lg:h-11 w-full bg-transparent border-0 text-sm sm:text-base lg:text-lg font-semibold text-gray-700 dark:text-white focus-visible:ring-0 focus-visible:ring-offset-0 rounded-full placeholder:text-gray-500 dark:placeholder:text-gray-400"
-                    placeholder='Search "burger"'
-                  />
+      {/* 2. Search Section - Same as Home */}
+      <div className="bg-white pt-3 md:pt-4 pb-6 px-3 sm:px-6 lg:px-8 relative z-30">
+        <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="flex-1 relative">
+              <div className="relative bg-white dark:bg-[#1a1a1a] rounded-2xl border border-slate-200 dark:border-slate-700 px-3 sm:px-4 lg:px-5 py-1 sm:py-1.5 shadow-sm transition-all duration-300 focus-within:border-sky-300 focus-within:shadow-[0_0_0_3px_rgba(14,165,233,0.12)]">
+                <div className="flex items-center gap-2 sm:gap-3 lg:gap-4">
+                  <Search className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-slate-500 flex-shrink-0" strokeWidth={2.5} />
+                  <div className="flex-1">
+                    <Input
+                      value={heroSearch}
+                      onChange={(e) => setHeroSearch(e.target.value)}
+                      onFocus={handleSearchFocus}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && heroSearch.trim()) {
+                          navigate(`/user/search?q=${encodeURIComponent(heroSearch.trim())}`)
+                          closeSearch()
+                          setHeroSearch("")
+                        }
+                      }}
+                      placeholder='Search "dining"'
+                      className="pl-0 pr-2 h-7 sm:h-8 lg:h-10 w-full bg-transparent !border-0 !shadow-none text-sm sm:text-base lg:text-lg font-semibold text-gray-700 dark:text-white focus-visible:!ring-0 rounded-none placeholder:text-gray-500"
+                    />
+                  </div>
+                  <button type="button" onClick={handleSearchFocus} className="flex-shrink-0 p-1.5 lg:p-2 bg-sky-50 dark:bg-sky-900/30 rounded-full">
+                    <Mic className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-gray-500" strokeWidth={2.5} />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleSearchFocus}
-                  className="flex-shrink-0 mr-2 sm:mr-3 lg:mr-4 p-1 lg:p-1.5 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
-                >
-                  <Mic className="h-4 w-4 sm:h-4 sm:w-4 lg:h-5 lg:w-5 text-gray-500 dark:text-gray-400" strokeWidth={2.5} />
-                </button>
               </div>
             </div>
           </div>
@@ -254,26 +348,121 @@ export default function Dining() {
       </div>
 
       {/* 3. Hero Banner Section - Distinct Block below Search */}
-      <div className="w-full px-4 sm:px-6 lg:px-8 pb-4">
-        <div
-          className="relative w-full overflow-hidden h-[20vh] sm:h-[28vh] lg:h-[35vh] rounded-2xl bg-gray-100 shadow-sm cursor-pointer"
-          onClick={() => navigate('/user/dining/restaurants')}
-        >
-          {diningHeroBanner && (
-            <OptimizedImage
-              src={diningHeroBanner}
-              alt="Dining Banner"
-              className="w-full h-full"
-              objectFit="cover"
-              priority={true}
-              sizes="100vw"
-            />
-          )}
+      <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+        {/* MOBILE VIEW BANNER */}
+        <div className="md:hidden">
+          <div
+            className="relative w-full overflow-hidden h-[20vh] sm:h-[28vh] rounded-2xl bg-gray-100 shadow-sm cursor-pointer"
+            onClick={() => navigate('/user/dining/restaurants')}
+          >
+            {heroBannerImages.length > 0 && (
+              <OptimizedImage
+                src={heroBannerImages[currentBannerIndex]}
+                alt="Dining Banner"
+                className="w-full h-full"
+                objectFit="cover"
+                priority={true}
+                sizes="100vw"
+              />
+            )}
+            {heroBannerImages.length === 0 && !loadingBanner && (
+              <div className="absolute inset-0 bg-blue-100 flex items-center justify-center">
+                <BadgePercent className="w-8 h-8 text-blue-500 opacity-50" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* DESKTOP VIEW BANNER (Premium) */}
+        <div className="hidden md:block">
+          <div
+            className="relative w-full overflow-hidden aspect-[4/1] lg:aspect-[3.3/1] rounded-3xl bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-900/10 dark:to-blue-900/10 shadow-sm group/banner"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
+            {loadingBanner ? (
+              <div className="absolute inset-0 z-0 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                <div className="text-gray-400 text-center">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+                  <p className="text-sm">Loading banners...</p>
+                </div>
+              </div>
+            ) : heroBannerImages.length > 0 ? (
+              <>
+                <motion.div
+                  className="flex h-full"
+                  animate={{
+                    x: `-${currentBannerIndex * 100}%`
+                  }}
+                  transition={{
+                    duration: 0.6,
+                    ease: [0.32, 0.72, 0, 1]
+                  }}
+                  style={{
+                    width: `${heroBannerImages.length * 100}%`
+                  }}
+                >
+                  {heroBannerImages.map((image, index) => (
+                    <div
+                      key={index}
+                      className="h-full flex-shrink-0 relative"
+                      style={{ width: `${100 / heroBannerImages.length}%` }}
+                    >
+                      <div className="w-full h-full transform transition-transform duration-700 group-hover/banner:scale-[1.02]">
+                        <OptimizedImage
+                          src={image}
+                          alt={`Dining Banner ${index + 1}`}
+                          className="w-full h-full"
+                          priority={index === 0}
+                          sizes="(max-width: 1100px) 100vw, 1100px"
+                          objectFit="cover"
+                          placeholder="blur"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </motion.div>
+
+                {/* Banner Indicators (Dots) */}
+                {heroBannerImages.length > 1 && (
+                  <div className="absolute bottom-4 left-0 right-0 flex justify-center items-center gap-1.5 z-10">
+                    {heroBannerImages.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setCurrentBannerIndex(index)
+                          resetAutoSlide()
+                        }}
+                        className={`h-1.5 transition-all duration-300 rounded-full ${index === currentBannerIndex
+                          ? "w-6 bg-white shadow-sm"
+                          : "w-1.5 bg-white/50 hover:bg-white/70"
+                          }`}
+                        aria-label={`Go to slide ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="absolute inset-0 z-0 bg-gradient-to-br from-blue-100 to-sky-100 dark:from-blue-900 dark:to-sky-900 flex items-center justify-center">
+                <div className="text-blue-600/50 flex flex-col items-center">
+                  <BadgePercent className="w-12 h-12 mb-2 opacity-50" />
+                  <p className="font-semibold">Discover Premium Dining Offers</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 pt-6 sm:pt-8 md:pt-10 lg:pt-12 pb-6 md:pb-8 lg:pb-10">
+      <div className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 md:pt-10 lg:pt-12 pb-16 md:pb-20">
         {/* Categories Section */}
         <div className="mb-6">
           <div className="mb-6">
@@ -504,55 +693,6 @@ export default function Dining() {
               </h3>
             </div>
           </div>
-
-          {/* Filters */}
-          <section className="py-1 mb-4">
-            <div
-              className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide pb-1"
-              style={{
-                scrollbarWidth: "none",
-                msOverflowStyle: "none",
-              }}
-            >
-              {/* Filter Button - Opens Modal */}
-              <Button
-                variant="outline"
-                onClick={() => setIsFilterOpen(true)}
-                className="h-7 sm:h-8 px-2 sm:px-3 rounded-md flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 font-medium transition-all bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300"
-              >
-                <SlidersHorizontal className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="text-xs sm:text-sm font-bold text-black dark:text-white">Filters</span>
-              </Button>
-
-              {/* Filter Buttons */}
-              {[
-                { id: 'delivery-under-30', label: 'Under 30 mins' },
-                { id: 'delivery-under-45', label: 'Under 45 mins' },
-                { id: 'distance-under-1km', label: 'Under 1km', icon: MapPin },
-                { id: 'distance-under-2km', label: 'Under 2km', icon: MapPin },
-                { id: 'rating-35-plus', label: '3.5+ Rating' },
-                { id: 'rating-4-plus', label: '4.0+ Rating' },
-                { id: 'rating-45-plus', label: '4.5+ Rating' },
-              ].map((filter) => {
-                const Icon = filter.icon
-                const isActive = activeFilters.has(filter.id)
-                return (
-                  <Button
-                    key={filter.id}
-                    variant="outline"
-                    onClick={() => toggleFilter(filter.id)}
-                    className={`h-7 sm:h-8 px-2 sm:px-3 rounded-md flex items-center gap-1.5 whitespace-nowrap flex-shrink-0 transition-all font-medium ${isActive
-                      ? 'bg-green-500 text-white border border-green-500 hover:bg-green-500/90'
-                      : 'bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300'
-                      }`}
-                  >
-                    {Icon && <Icon className={`h-3 w-3 sm:h-4 sm:w-4 ${isActive ? 'fill-white' : ''}`} />}
-                    <span className="text-xs sm:text-sm font-bold text-black dark:text-white">{filter.label}</span>
-                  </Button>
-                )
-              })}
-            </div>
-          </section>
 
           {/* Restaurant Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 md:gap-6 lg:gap-8">
@@ -1219,4 +1359,3 @@ export default function Dining() {
     </AnimatedPage>
   )
 }
-

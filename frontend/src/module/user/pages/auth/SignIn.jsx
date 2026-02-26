@@ -787,7 +787,7 @@ export default function SignIn() {
                     setAuthMethod("phone")
                     setApiError("")
                   }}
-                  className="text-xs text-[#E23744] hover:underline text-left"
+                  className="text-xs text-[#0EA5E9] hover:underline text-left"
                 >
                   Use phone instead
                 </button>
@@ -802,7 +802,7 @@ export default function SignIn() {
                 onCheckedChange={(checked) =>
                   setFormData({ ...formData, rememberMe: checked })
                 }
-                className="w-4 h-4 border-2 border-gray-300 rounded data-[state=checked]:bg-[#E23744] data-[state=checked]:border-[#E23744] flex items-center justify-center"
+                className="w-4 h-4 border-2 border-gray-300 rounded data-[state=checked]:bg-[#0EA5E9] data-[state=checked]:border-[#0EA5E9] flex items-center justify-center"
               />
               <label
                 htmlFor="rememberMe"
@@ -815,7 +815,7 @@ export default function SignIn() {
             {/* Continue Button */}
             <Button
               type="submit"
-              className="w-full h-12 md:h-14 bg-[#D32F2F] hover:bg-[#b71c1c] text-white font-bold text-base md:text-lg rounded-lg transition-all hover:shadow-lg active:scale-[0.98]"
+              className="w-full h-12 md:h-14 bg-[#0EA5E9] hover:bg-[#0284C7] text-white font-bold text-base md:text-lg rounded-lg transition-all hover:shadow-lg active:scale-[0.98]"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -874,7 +874,7 @@ export default function SignIn() {
             <button
               type="button"
               onClick={handleLoginMethodChange}
-              className="w-12 h-12 md:w-14 md:h-14 rounded-full border border-[#E23744] flex items-center justify-center hover:bg-[#d32f3d] transition-all hover:shadow-md active:scale-95 bg-[#E23744]"
+              className="w-12 h-12 md:w-14 md:h-14 rounded-full border border-[#0EA5E9] flex items-center justify-center hover:bg-[#0284C7] transition-all hover:shadow-md active:scale-95 bg-[#0EA5E9]"
               aria-label="Sign in with Email"
             >
               {authMethod == "phone" ? <Mail className="h-5 w-5 md:h-6 md:w-6 text-white" /> : <Phone className="h-5 w-5 md:h-6 md:w-6 text-white" />}

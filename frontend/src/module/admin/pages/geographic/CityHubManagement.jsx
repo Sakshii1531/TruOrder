@@ -73,13 +73,20 @@ export default function CityHubManagement() {
         fetchHubs()
     }, [])
 
+    // Re-fetch cities whenever the Hubs tab is opened so the city dropdown is always up-to-date
+    useEffect(() => {
+        if (activeTab === "hubs") {
+            fetchCities()
+        }
+    }, [activeTab])
+
     const fetchCities = async () => {
         try {
             setCitiesLoading(true)
             const response = await adminAPI.getCities()
-            if (response.data.success) {
-                setCities(response.data.data.cities)
-            }
+            const data = response?.data
+            const cityList = data?.data?.cities ?? data?.cities ?? []
+            setCities(cityList)
         } catch (err) {
             console.error("Error fetching cities:", err)
             setError("Failed to load cities")
@@ -242,7 +249,7 @@ export default function CityHubManagement() {
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                        <div className="w-12 h-12 rounded-xl bg-sky-600 flex items-center justify-center shadow-lg shadow-sky-200">
                             <Globe className="w-6 h-6 text-white" />
                         </div>
                         <div>
@@ -282,14 +289,14 @@ export default function CityHubManagement() {
                     <TabsList className="bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm mb-6 h-auto flex flex-wrap sm:flex-nowrap gap-2 items-center w-fit">
                         <TabsTrigger
                             value="cities"
-                            className="flex items-center justify-center py-2.5 px-6 rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white transition-all duration-200 font-medium hover:bg-slate-50 data-[state=active]:hover:bg-indigo-700 shadow-none border-none"
+                            className="flex items-center justify-center py-2.5 px-6 rounded-lg data-[state=active]:bg-sky-600 data-[state=active]:text-white transition-all duration-200 font-medium hover:bg-slate-50 data-[state=active]:hover:bg-sky-700 shadow-none border-none"
                         >
                             <Building2 className="w-4 h-4 mr-2.5" />
                             Manage Cities
                         </TabsTrigger>
                         <TabsTrigger
                             value="hubs"
-                            className="flex items-center justify-center py-2.5 px-6 rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white transition-all duration-200 font-medium hover:bg-slate-50 data-[state=active]:hover:bg-indigo-700 shadow-none border-none"
+                            className="flex items-center justify-center py-2.5 px-6 rounded-lg data-[state=active]:bg-sky-600 data-[state=active]:text-white transition-all duration-200 font-medium hover:bg-slate-50 data-[state=active]:hover:bg-sky-700 shadow-none border-none"
                         >
                             <MapPin className="w-4 h-4 mr-2.5" />
                             Manage Hubs
@@ -320,7 +327,7 @@ export default function CityHubManagement() {
                                             <Label htmlFor="status">Status</Label>
                                             <select
                                                 id="status"
-                                                className="flex h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                className="flex h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
                                                 value={cityForm.status}
                                                 onChange={(e) => setCityForm({ ...cityForm, status: e.target.value })}
                                             >
@@ -329,7 +336,7 @@ export default function CityHubManagement() {
                                             </select>
                                         </div>
                                         <div className="flex gap-2">
-                                            <Button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700" disabled={submitting}>
+                                            <Button type="submit" className="flex-1 bg-sky-600 hover:bg-sky-700" disabled={submitting}>
                                                 {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : (editingCityId ? "Update" : "Create")}
                                             </Button>
                                             {editingCityId && (
@@ -360,7 +367,7 @@ export default function CityHubManagement() {
                                         <TableBody>
                                             {citiesLoading ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={4} className="h-40 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-600" /></TableCell>
+                                                    <TableCell colSpan={4} className="h-40 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-sky-600" /></TableCell>
                                                 </TableRow>
                                             ) : filteredCities.length === 0 ? (
                                                 <TableRow>
@@ -382,7 +389,7 @@ export default function CityHubManagement() {
                                                             </TableCell>
                                                             <TableCell className="text-right">
                                                                 <div className="flex justify-end gap-2">
-                                                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50" onClick={() => handleEditCity(city)}>
+                                                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-sky-600 hover:text-sky-700 hover:bg-sky-50" onClick={() => handleEditCity(city)}>
                                                                         <Edit className="w-4 h-4" />
                                                                     </Button>
                                                                     <Button size="icon" variant="ghost" className="h-8 w-8 text-rose-600 hover:text-rose-700 hover:bg-rose-50" onClick={() => handleDeleteCity(city._id)}>
@@ -415,7 +422,7 @@ export default function CityHubManagement() {
                                             <Label htmlFor="hubCity">Select City</Label>
                                             <select
                                                 id="hubCity"
-                                                className="flex h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                className="flex h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
                                                 value={hubForm.cityId}
                                                 onChange={(e) => setHubForm({ ...hubForm, cityId: e.target.value })}
                                                 required
@@ -465,9 +472,9 @@ export default function CityHubManagement() {
                                             <div className="flex flex-wrap gap-2 pt-1 border border-dashed border-slate-200 p-3 rounded-lg min-h-[60px]">
                                                 {hubForm.serviceablePincodes.length === 0 && <p className="text-xs text-slate-400 italic">No pincodes added</p>}
                                                 {hubForm.serviceablePincodes.map(pin => (
-                                                    <Badge key={pin} className="bg-amber-100 text-amber-700 hover:bg-amber-200 flex items-center gap-1 py-1 pr-1">
+                                                    <Badge key={pin} className="bg-sky-100 text-sky-700 hover:bg-sky-200 flex items-center gap-1 py-1 pr-1">
                                                         {pin}
-                                                        <button type="button" onClick={() => handleRemovePincode(pin)} className="hover:bg-amber-300/30 rounded-full p-0.5">
+                                                        <button type="button" onClick={() => handleRemovePincode(pin)} className="hover:bg-sky-300/30 rounded-full p-0.5">
                                                             <X className="w-3 h-3" />
                                                         </button>
                                                     </Badge>
@@ -478,7 +485,7 @@ export default function CityHubManagement() {
                                             <Label htmlFor="hubStatus">Status</Label>
                                             <select
                                                 id="hubStatus"
-                                                className="flex h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                className="flex h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
                                                 value={hubForm.status}
                                                 onChange={(e) => setHubForm({ ...hubForm, status: e.target.value })}
                                             >
@@ -487,7 +494,7 @@ export default function CityHubManagement() {
                                             </select>
                                         </div>
                                         <div className="flex gap-2 pt-2">
-                                            <Button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700" disabled={submitting}>
+                                            <Button type="submit" className="flex-1 bg-sky-600 hover:bg-sky-700" disabled={submitting}>
                                                 {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : (editingHubId ? "Update" : "Create")}
                                             </Button>
                                             {editingHubId && (
@@ -519,7 +526,7 @@ export default function CityHubManagement() {
                                         <TableBody>
                                             {hubsLoading ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={5} className="h-40 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-600" /></TableCell>
+                                                    <TableCell colSpan={5} className="h-40 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-sky-600" /></TableCell>
                                                 </TableRow>
                                             ) : filteredHubs.length === 0 ? (
                                                 <TableRow>
@@ -538,7 +545,7 @@ export default function CityHubManagement() {
                                                         <TableCell>
                                                             <div className="flex flex-wrap gap-1 max-w-[200px]">
                                                                 {hub.serviceablePincodes?.slice(0, 3).map(pin => (
-                                                                    <span key={pin} className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-medium border border-indigo-100">{pin}</span>
+                                                                    <span key={pin} className="text-[10px] bg-sky-50 text-sky-600 px-1.5 py-0.5 rounded font-medium border border-sky-100">{pin}</span>
                                                                 ))}
                                                                 {hub.serviceablePincodes?.length > 3 && (
                                                                     <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">+{hub.serviceablePincodes.length - 3} more</span>
@@ -552,7 +559,7 @@ export default function CityHubManagement() {
                                                         </TableCell>
                                                         <TableCell className="text-right">
                                                             <div className="flex justify-end gap-2">
-                                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50" onClick={() => handleEditHub(hub)}>
+                                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-sky-600 hover:text-sky-700 hover:bg-sky-50" onClick={() => handleEditHub(hub)}>
                                                                     <Edit className="w-4 h-4" />
                                                                 </Button>
                                                                 <Button size="icon" variant="ghost" className="h-8 w-8 text-rose-600 hover:text-rose-700 hover:bg-rose-50" onClick={() => handleDeleteHub(hub._id)}>
