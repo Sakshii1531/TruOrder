@@ -3,6 +3,7 @@ import Order from '../models/Order.js';
 import Zone from '../../admin/models/Zone.js';
 import Restaurant from '../../restaurant/models/Restaurant.js';
 import mongoose from 'mongoose';
+import { findNearestOnlineDeliveryBoy } from '../../../config/firebaseRealtime.js';
 
 /**
  * Calculate distance between two coordinates using Haversine formula
@@ -149,6 +150,26 @@ export async function findNearestDeliveryBoys(restaurantLat, restaurantLng, rest
 export async function findNearestDeliveryBoy(restaurantLat, restaurantLng, restaurantId = null, maxDistance = 50, excludeIds = []) {
   try {
     console.log(`🔍 Searching for nearest delivery partner near restaurant: ${restaurantLat}, ${restaurantLng} (Restaurant ID: ${restaurantId})`);
+
+    // Fast path: use Firebase realtime delivery_boys table when available
+    const nearestFromFirebase = await findNearestOnlineDeliveryBoy(restaurantLat, restaurantLng, maxDistance);
+    if (nearestFromFirebase && nearestFromFirebase.boy_id) {
+      const excluded = Array.isArray(excludeIds) && excludeIds.includes(nearestFromFirebase.boy_id);
+      if (!excluded) {
+        console.log(`✅ Found nearest delivery partner from Firebase table: ${nearestFromFirebase.boy_id}`);
+        return {
+          deliveryPartnerId: nearestFromFirebase.boy_id,
+          name: nearestFromFirebase.name || 'Delivery Partner',
+          phone: nearestFromFirebase.phone || '',
+          distance: nearestFromFirebase.distance_km,
+          location: {
+            latitude: nearestFromFirebase.lat,
+            longitude: nearestFromFirebase.lng
+          }
+        };
+      }
+    }
+
 
     // Step 1: Find zone for restaurant (if restaurantId provided)
     let zone = null;
@@ -401,4 +422,3 @@ export async function assignOrderToDeliveryBoy(order, restaurantLat, restaurantL
     throw error;
   }
 }
-

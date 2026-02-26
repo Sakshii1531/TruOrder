@@ -1,10 +1,12 @@
 import { asyncHandler } from '../../../shared/middleware/asyncHandler.js';
 import { successResponse, errorResponse } from '../../../shared/utils/response.js';
 import Delivery from '../models/Delivery.js';
+import Order from '../../order/models/Order.js';
 import Zone from '../../admin/models/Zone.js';
 import { validate } from '../../../shared/middleware/validate.js';
 import Joi from 'joi';
 import winston from 'winston';
+import { upsertDeliveryBoyPresence, upsertDriverPresence, updateActiveOrderLocation } from '../../../config/firebaseRealtime.js';
 
 const logger = winston.createLogger({
   level: 'info',
@@ -94,6 +96,46 @@ export const updateLocation = asyncHandler(async (req, res) => {
     }
 
     const currentLocation = updatedDelivery.availability?.currentLocation;
+    const resolvedLat = currentLocation?.coordinates?.[1] ?? latitude ?? 0;
+    const resolvedLng = currentLocation?.coordinates?.[0] ?? longitude ?? 0;
+    const resolvedOnline = typeof isOnline === 'boolean'
+      ? isOnline
+      : !!updatedDelivery.availability?.isOnline;
+
+    // Sync delivery partner status/location to Firebase Realtime Database
+    await upsertDeliveryBoyPresence(updatedDelivery._id.toString(), {
+      status: resolvedOnline ? 'online' : 'offline',
+      lat: resolvedLat,
+      lng: resolvedLng,
+      last_updated: Date.now()
+    });
+
+    await upsertDriverPresence(updatedDelivery._id.toString(), {
+      id: updatedDelivery.deliveryId || updatedDelivery._id.toString(),
+      name: updatedDelivery.name || 'Delivery Partner',
+      mobile: updatedDelivery.phone || '',
+      lat: resolvedLat,
+      lng: resolvedLng,
+      is_active: updatedDelivery.isActive ? 1 : 0,
+      is_available: resolvedOnline,
+      transport_type: updatedDelivery.vehicle?.type || 'both',
+      vehicle_number: updatedDelivery.vehicle?.number || '',
+      vehicle_type_name: updatedDelivery.vehicle?.model || updatedDelivery.vehicle?.brand || '',
+      vehicle_type_icon: updatedDelivery.vehicle?.type || 'motor_bike',
+      updated_at: Date.now()
+    });
+
+    // Sync active order marker location for this delivery partner
+    const activeOrders = await Order.find({
+      deliveryPartnerId: updatedDelivery._id,
+      status: { $nin: ['delivered', 'cancelled'] }
+    }).select('orderId').lean();
+
+    for (const activeOrder of activeOrders) {
+      if (activeOrder?.orderId) {
+        await updateActiveOrderLocation(activeOrder.orderId, resolvedLat, resolvedLng);
+      }
+    }
 
     return successResponse(res, 200, 'Status updated successfully', {
       location: currentLocation ? {
@@ -225,4 +267,3 @@ export const getZonesInRadius = asyncHandler(async (req, res) => {
     return errorResponse(res, 500, 'Failed to fetch zones');
   }
 });
-

@@ -169,36 +169,64 @@ export const getAbout = asyncHandler(async (req, res) => {
 export const updateAbout = asyncHandler(async (req, res) => {
   try {
     const { appName, version, description, logo, features, stats } = req.body;
+    const normalizedAppName = typeof appName === 'string' ? appName.trim() : '';
+    const normalizedVersion = typeof version === 'string' ? version.trim() : '';
+    const normalizedDescription = typeof description === 'string' ? description.trim() : '';
+    const normalizedLogo = typeof logo === 'string' ? logo.trim() : '';
+    const adminId = req?.admin?._id || req?.user?._id || null;
 
     // Validate required fields
-    if (!appName || !version || !description) {
+    if (!normalizedAppName || !normalizedVersion || !normalizedDescription) {
       return errorResponse(res, 400, 'App name, version, and description are required');
     }
 
-    // Find existing about page or create new one
-    let about = await About.findOne({ isActive: true });
+    // Keep only valid feature/stat rows so one partial row does not block full save.
+    const sanitizedFeatures = Array.isArray(features)
+      ? features
+          .filter((feature) => feature && feature.icon && String(feature.title || '').trim() && String(feature.description || '').trim())
+          .map((feature, index) => ({
+            icon: feature.icon,
+            title: String(feature.title).trim(),
+            description: String(feature.description).trim(),
+            color: feature.color || 'text-gray-600',
+            bgColor: feature.bgColor || 'bg-gray-100',
+            order: Number.isFinite(feature.order) ? feature.order : index
+          }))
+      : undefined;
 
-    if (!about) {
-      about = new About({
-        appName,
-        version,
-        description,
-        logo: logo || '',
-        features: features || [],
-        stats: stats || [],
-        updatedBy: req.admin._id
-      });
-    } else {
-      about.appName = appName;
-      about.version = version;
-      about.description = description;
-      if (logo !== undefined) about.logo = logo;
-      if (features !== undefined) about.features = features;
-      if (stats !== undefined) about.stats = stats;
-      about.updatedBy = req.admin._id;
+    const sanitizedStats = Array.isArray(stats)
+      ? stats
+          .filter((stat) => stat && stat.icon && String(stat.label || '').trim() && String(stat.value || '').trim())
+          .map((stat, index) => ({
+            label: String(stat.label).trim(),
+            value: String(stat.value).trim(),
+            icon: stat.icon,
+            order: Number.isFinite(stat.order) ? stat.order : index
+          }))
+      : undefined;
+
+    const updateData = {
+      appName: normalizedAppName,
+      version: normalizedVersion,
+      description: normalizedDescription,
+      updatedBy: adminId
+    };
+
+    if (logo !== undefined) {
+      updateData.logo = normalizedLogo;
+    }
+    if (sanitizedFeatures !== undefined) {
+      updateData.features = sanitizedFeatures;
+    }
+    if (sanitizedStats !== undefined) {
+      updateData.stats = sanitizedStats;
     }
 
-    await about.save();
+    const about = await About.findOneAndUpdate(
+      { isActive: true },
+      { $set: updateData, $setOnInsert: { isActive: true } },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    );
 
     return successResponse(res, 200, 'About page updated successfully', about);
   } catch (error) {
@@ -206,4 +234,3 @@ export const updateAbout = asyncHandler(async (req, res) => {
     return errorResponse(res, 500, 'Failed to update about page');
   }
 });
-

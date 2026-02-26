@@ -10,6 +10,13 @@ import RestaurantWallet from '../../restaurant/models/RestaurantWallet.js';
 import RestaurantCommission from '../../admin/models/RestaurantCommission.js';
 import AdminCommission from '../../admin/models/AdminCommission.js';
 import { calculateRoute } from '../../order/services/routeCalculationService.js';
+import {
+  upsertActiveOrderTracking,
+  upsertRouteCache,
+  makeRouteCacheKey,
+  setActiveOrderStatus,
+  removeActiveOrder
+} from '../../../config/firebaseRealtime.js';
 import mongoose from 'mongoose';
 import winston from 'winston';
 
@@ -654,6 +661,55 @@ export const acceptOrder = asyncHandler(async (req, res) => {
     console.log(`✅ Order ${order.orderId} accepted by delivery partner ${delivery._id}`);
     console.log(`📍 Route calculated: ${routeData.distance.toFixed(2)} km, ${routeData.duration.toFixed(1)} mins`);
 
+    // Sync Firebase active_orders + route_cache in realtime format
+    try {
+      const customerCoords = updatedOrder?.address?.location?.coordinates;
+      const customerLng = Array.isArray(customerCoords) ? customerCoords[0] : null;
+      const customerLat = Array.isArray(customerCoords) ? customerCoords[1] : null;
+      const hasCustomer = typeof customerLat === 'number' && typeof customerLng === 'number';
+
+      let routeForCustomer = {
+        coordinates: routeData.coordinates,
+        distance: routeData.distance,
+        duration: routeData.duration
+      };
+
+      if (hasCustomer && typeof restaurantLat === 'number' && typeof restaurantLng === 'number') {
+        try {
+          routeForCustomer = await calculateRoute(restaurantLat, restaurantLng, customerLat, customerLng, {
+            useDijkstra: true
+          });
+        } catch (routeToCustomerError) {
+          console.warn('⚠️ Failed to calculate restaurant->customer route for Firebase cache, using pickup route');
+        }
+
+        const routeKey = makeRouteCacheKey(restaurantLat, restaurantLng, customerLat, customerLng);
+        await upsertRouteCache(routeKey, {
+          distance: routeForCustomer.distance,
+          duration: routeForCustomer.duration,
+          route_coordinates: routeForCustomer.coordinates
+        });
+      }
+
+      await upsertActiveOrderTracking(updatedOrder.orderId, {
+        boy_id: delivery._id.toString(),
+        boy_lat: deliveryLat,
+        boy_lng: deliveryLng,
+        customer_lat: hasCustomer ? customerLat : 0,
+        customer_lng: hasCustomer ? customerLng : 0,
+        restaurant_lat: Number(restaurantLat) || 0,
+        restaurant_lng: Number(restaurantLng) || 0,
+        distance: Number(routeForCustomer.distance || 0),
+        duration: Number(routeForCustomer.duration || 0),
+        route_coordinates: routeForCustomer.coordinates || [],
+        status: 'assigned',
+        created_at: Date.now(),
+        last_updated: Date.now()
+      });
+    } catch (firebaseSyncError) {
+      console.warn('⚠️ Failed to sync active order to Firebase:', firebaseSyncError.message);
+    }
+
     // Calculate delivery distance (restaurant to customer) for earnings calculation
     let deliveryDistance = 0;
     if (updatedOrder.restaurantId?.location?.coordinates && updatedOrder.address?.location?.coordinates) {
@@ -857,6 +913,8 @@ export const confirmReachedPickup = asyncHandler(async (req, res) => {
     await order.save();
 
     console.log(`✅ Delivery partner ${delivery._id} reached pickup for order ${order.orderId}`);
+
+    await setActiveOrderStatus(order.orderId, 'at_pickup');
 
     // After 10 seconds, trigger order ID confirmation request
     // Use order._id (MongoDB ObjectId) instead of orderId string
@@ -1176,6 +1234,36 @@ export const confirmOrderId = asyncHandler(async (req, res) => {
     console.log(`✅ Order ID confirmed for order ${order.orderId}`);
     console.log(`📍 Route to delivery calculated: ${routeData.distance.toFixed(2)} km, ${routeData.duration.toFixed(1)} mins`);
 
+    try {
+      const restaurantCoords = updatedOrder?.restaurantId?.location?.coordinates;
+      const restaurantLng = Array.isArray(restaurantCoords) ? restaurantCoords[0] : deliveryLng;
+      const restaurantLat = Array.isArray(restaurantCoords) ? restaurantCoords[1] : deliveryLat;
+
+      const routeKey = makeRouteCacheKey(restaurantLat, restaurantLng, customerLat, customerLng);
+      await upsertRouteCache(routeKey, {
+        distance: routeData.distance,
+        duration: routeData.duration,
+        route_coordinates: routeData.coordinates
+      });
+
+      await upsertActiveOrderTracking(updatedOrder.orderId, {
+        boy_id: delivery._id.toString(),
+        boy_lat: deliveryLat,
+        boy_lng: deliveryLng,
+        customer_lat: customerLat,
+        customer_lng: customerLng,
+        restaurant_lat: restaurantLat,
+        restaurant_lng: restaurantLng,
+        distance: routeData.distance,
+        duration: routeData.duration,
+        route_coordinates: routeData.coordinates,
+        status: 'on_the_way',
+        last_updated: Date.now()
+      });
+    } catch (firebaseSyncError) {
+      console.warn('⚠️ Failed to sync confirm-order-id to Firebase:', firebaseSyncError.message);
+    }
+
     // Send response first, then handle socket notification asynchronously
     const responseData = {
       order: updatedOrder,
@@ -1380,6 +1468,8 @@ export const confirmReachedDrop = asyncHandler(async (req, res) => {
     const orderIdForLog = finalOrder.orderId || finalOrder._id?.toString() || orderId;
     console.log(`✅ Delivery partner ${delivery._id} reached drop location for order ${orderIdForLog}`);
 
+    await setActiveOrderStatus(orderIdForLog, 'at_drop');
+
     return successResponse(res, 200, 'Reached drop confirmed', {
       order: finalOrder,
       message: 'Reached drop location confirmed'
@@ -1507,6 +1597,9 @@ export const completeDelivery = asyncHandler(async (req, res) => {
       } catch (earningsError) {
         console.error('⚠️ Error calculating earnings for already delivered order:', earningsError.message);
       }
+
+      await setActiveOrderStatus(order.orderId || order._id?.toString(), 'delivered');
+      await removeActiveOrder(order.orderId || order._id?.toString());
 
       return successResponse(res, 200, 'Order already delivered', {
         order: order,
@@ -1895,6 +1988,9 @@ export const completeDelivery = asyncHandler(async (req, res) => {
       message: 'Delivery completed successfully'
     };
 
+    await setActiveOrderStatus(updatedOrder.orderId, 'delivered');
+    await removeActiveOrder(updatedOrder.orderId);
+
     // Send response immediately
     const response = successResponse(res, 200, 'Delivery completed successfully', responseData);
 
@@ -1938,4 +2034,3 @@ export const completeDelivery = asyncHandler(async (req, res) => {
     return errorResponse(res, 500, `Failed to complete delivery: ${error.message}`);
   }
 });
-
